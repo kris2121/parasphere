@@ -17,7 +17,6 @@ export type LocationData = {
   address?: string;
   priceInfo?: string;
   website?: string;
-  // optional for events
   startISO?: string;
   endISO?: string;
 };
@@ -46,7 +45,7 @@ export default forwardRef<LiveMapHandle, Props>(function LiveMap(
   const geoRef = useRef<mapboxgl.GeolocateControl | null>(null);
 
   useImperativeHandle(ref, () => ({
-    focusOn() {/* no-op by design */},
+    focusOn() {/* no-op */},
     getCenter: () => {
       const m = mapRef.current;
       if (!m) return null;
@@ -59,7 +58,6 @@ export default forwardRef<LiveMapHandle, Props>(function LiveMap(
     const map = mapRef.current;
     if (!map) return;
 
-    // create the cyan dot element
     const el = document.createElement('div');
     el.style.width = '14px';
     el.style.height = '14px';
@@ -70,8 +68,7 @@ export default forwardRef<LiveMapHandle, Props>(function LiveMap(
     el.title = 'You are here';
 
     if (userMarkerRef.current) {
-      // update position only (no setElement on Marker)
-      userMarkerRef.current.setLngLat([lon, lat]);
+      userMarkerRef.current.setLngLat([lon, lat]); // update position only
     } else {
       userMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
         .setLngLat([lon, lat])
@@ -104,12 +101,15 @@ export default forwardRef<LiveMapHandle, Props>(function LiveMap(
     map.addControl(geo, 'bottom-right');
 
     map.on('load', () => {
-      geo.on('geolocate', (e: GeolocationPosition) => {
-        const { latitude, longitude } = e.coords;
-        putOrMoveUserMarker(longitude, latitude);
+      // Type-safe, tolerant handler (mapbox types don't expose a precise event shape here)
+      (geo as any).on('geolocate', (e: any) => {
+        const coords = e?.coords || e?.position?.coords;
+        if (coords && typeof coords.longitude === 'number' && typeof coords.latitude === 'number') {
+          putOrMoveUserMarker(coords.longitude, coords.latitude);
+        }
       });
 
-      if (navigator.geolocation) {
+      if (typeof navigator !== 'undefined' && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           (pos) => putOrMoveUserMarker(pos.coords.longitude, pos.coords.latitude),
           () => {},
@@ -136,7 +136,6 @@ export default forwardRef<LiveMapHandle, Props>(function LiveMap(
     const map = mapRef.current;
     if (!map) return;
 
-    // clear and re-add all data markers
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
@@ -167,13 +166,7 @@ export default forwardRef<LiveMapHandle, Props>(function LiveMap(
         className="rounded-xl overflow-hidden border border-neutral-800"
         style={{ width: '100%', height: `min(${heightVh.desktop}vh, 700px)` }}
       />
-      <style jsx>{`
-        @media (max-width: 768px) {
-          /* cannot target ref attribute; handled via inline style above if needed */
-        }
-      `}</style>
-
-      {/* Legend bottom-center */}
+      {/* Legend */}
       <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-3 z-10">
         <div className="flex gap-4 rounded-lg border border-neutral-800 bg-neutral-950/80 backdrop-blur px-4 py-2 text-xs text-neutral-200">
           <span className="flex items-center gap-1">
@@ -201,6 +194,7 @@ export default forwardRef<LiveMapHandle, Props>(function LiveMap(
     </div>
   );
 });
+
 
 
 
