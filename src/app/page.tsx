@@ -7,6 +7,8 @@ import LiveMap, { LocationData, LiveMapHandle } from "@/components/LiveMap";
 import LocationDrawer from "@/components/LocationDrawer";
 import UserDrawer, { UserMini } from "@/components/UserDrawer";
 import MapActions from "@/components/MapActions";
+import FilterBar from '@/components/FilterBar';
+
 
 /* --------------------------------- UI bits -------------------------------- */
 function StarBadge({ value, onClick }: { value: number; onClick?: () => void }) {
