@@ -39,9 +39,12 @@ export default function EventCard({
   const start = ev.startISO ? new Date(ev.startISO) : null;
   const end = ev.endISO ? new Date(ev.endISO) : null;
 
-  const ended =
-    end?.getTime() < now.getTime() ||
-    (!end && start?.getTime() && start.getTime() < now.getTime());
+  // TS-safe boolean, no optional chaining in condition
+  const ended = end
+    ? end.getTime() < now.getTime()
+    : start
+    ? start.getTime() < now.getTime()
+    : false;
 
   return (
     <article className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 hover:border-neutral-700 transition">
@@ -127,7 +130,7 @@ export default function EventCard({
             }`}
             title={ev.myStarred ? 'Unstar' : 'Star'}
           >
-            ★ {ev.stars ?? 0}
+            Star {ev.stars ?? 0}
           </button>
         )}
       </div>
@@ -190,7 +193,3 @@ export default function EventCard({
     </article>
   );
 }
-
-
-
-
