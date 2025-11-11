@@ -1,8 +1,10 @@
 'use client';
 
+import { Dispatch, SetStateAction } from 'react';
+
 type Props = {
-  current: string;                       // the active tab id, e.g. 'home' | 'hauntings' | ...
-  onSelect: (tab: string) => void;       // caller updates state in page.tsx
+  current: string;                              // active tab id
+  onSelect: Dispatch<SetStateAction<string>>;   // accepts setTab directly
 };
 
 export default function FilterBar({ current, onSelect }: Props) {
@@ -14,7 +16,6 @@ export default function FilterBar({ current, onSelect }: Props) {
     { id: 'events',       label: 'Events' },
     { id: 'marketplace',  label: 'Marketplace' },
     { id: 'collaboration',label: 'Collaboration' },
-    // (Search/Profile now live elsewhere; leave out to keep UI clean)
   ];
 
   return (
@@ -39,6 +40,7 @@ export default function FilterBar({ current, onSelect }: Props) {
     </div>
   );
 }
+
 
 
 
