@@ -7,8 +7,7 @@ import LiveMap, { LocationData, LiveMapHandle } from "@/components/LiveMap";
 import LocationDrawer from "@/components/LocationDrawer";
 import UserDrawer, { UserMini } from "@/components/UserDrawer";
 import MapActions from "@/components/MapActions";
-import FilterBar from '@/components/FilterBar';
-
+import FilterBar from "@/components/FilterBar";
 
 /* --------------------------------- UI bits -------------------------------- */
 function StarBadge({ value, onClick }: { value: number; onClick?: () => void }) {
@@ -65,8 +64,8 @@ type DemoPost = {
   title: string;
   desc: string;
   locationId?: string;
-  imageUrl?: string;      // local preview (ObjectURL) for demo
-  linkUrl?: string;       // external (videos, websites, socials)
+  imageUrl?: string;
+  linkUrl?: string;
   authorId: string;
   authorName: string;
   tagUserIds?: string[];
@@ -114,16 +113,6 @@ type CollabItem = {
   postedBy: { id: string; name: string };
 };
 
-type CommentItem = {
-  id: string;
-  authorId: string;
-  authorName: string;
-  text: string;
-  imageUrl?: string;
-  tagUserIds?: string[];
-  createdAt: number;
-};
-
 /* ------------------------------ Helper hooks ------------------------------ */
 function useImagePreview() {
   const [url, setUrl] = useState<string | undefined>(undefined);
@@ -152,7 +141,8 @@ function useImagePreview() {
 
 /* ================================ Page ==================================== */
 export default function Home() {
-  const currentUser = { id: "u_kris", name: "Kris" };
+  // Current user (replace with Supabase auth later)
+  const currentUser = { id: "u_current", name: "You" };
 
   /* ------------ NAV / MAP ------------ */
   const [tab, setTab] = useState<string>("home");
@@ -166,21 +156,9 @@ export default function Home() {
   const [userDrawerOpen, setUserDrawerOpen] = useState(false);
   const [drawerUser, setDrawerUser] = useState<UserMini | undefined>(undefined);
 
-  /* ------------ RATINGS ------------ */
-  const [userStars, setUserStars] = useState<Record<string, number>>({
-    u_kris: 5,
-    u_scott: 3,
-    u_jay: 4,
-    u_andy: 2,
-  });
-  const [locationStars, setLocationStars] = useState<Record<string, number>>({
-    pendle: 12,
-    bodmin: 7,
-    snowdonia: 5,
-    ev_msb_overnight: 3,
-  });
-
-  // NEW: star maps for every card type
+  /* ------------ STARS ------------ */
+  const [userStars, setUserStars] = useState<Record<string, number>>({});
+  const [locationStars, setLocationStars] = useState<Record<string, number>>({});
   const [postStars, setPostStars] = useState<Record<string, number>>({});
   const [eventStars, setEventStars] = useState<Record<string, number>>({});
   const [marketStars, setMarketStars] = useState<Record<string, number>>({});
@@ -197,121 +175,50 @@ export default function Home() {
   const giveMarketStar = (id: string) => inc(setMarketStars, id);
   const giveCollabStar = (id: string) => inc(setCollabStars, id);
 
-  /* ------------ DEMO USERS ------------ */
-  const users: Record<string, UserMini> = {
-    u_scott: { id: "u_scott", name: "Scott", team: "The Paranormal Project", location: "NW England" },
-    u_jay: { id: "u_jay", name: "Jay", team: "The Paranormal Project", location: "NW England" },
-    u_andy: { id: "u_andy", name: "Andy", team: "The Paranormal Project", location: "NW England" },
-    u_kris: { id: "u_kris", name: "Kris", team: "The Paranormal Project", location: "NW England" },
-  };
-
-  /* ------------ LOCATIONS ------------ */
-  const [locations, setLocations] = useState<LocationData[]>([
-    {
-      id: "pendle",
-      title: "Pendle Hill",
-      type: "HAUNTING",
-      lat: 53.856,
-      lng: -2.298,
-      imageUrl:
-        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1600&auto=format&fit=crop",
-      summary: "Famous Lancashire haunting hotspot.",
-      address: "Pendle Hill, Lancashire",
-    },
-    {
-      id: "bodmin",
-      title: "Beast of Bodmin",
-      type: "CRYPTID",
-      lat: 50.498,
-      lng: -4.668,
-      imageUrl:
-        "https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=1600&auto=format&fit=crop",
-      summary: "Large cat sightings reported.",
-      address: "Bodmin Moor, Cornwall",
-    },
-    {
-      id: "snowdonia",
-      title: "Snowdonia Ridge Lights",
-      type: "UFO",
-      lat: 53.068,
-      lng: -4.076,
-      imageUrl:
-        "https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?q=80&w=1600&auto=format&fit=crop",
-      summary: "Fast zigzag lights, no sound.",
-      address: "Snowdonia National Park, Wales",
-    },
-    {
-      id: "ev_msb_overnight",
-      title: "Mill Street Barracks — Overnight Investigation",
-      type: "EVENT",
-      lat: 53.389,
-      lng: -2.881,
-      imageUrl:
-        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=1600&auto=format&fit=crop",
-      summary: "Small group ghost hunt.",
-      address: "St Helens, WA10",
-      priceInfo: "£35 pp",
-      website: "https://example.com/tickets",
-    },
-  ]);
-
-  /* ------------ POSTS ------------ */
-  const [posts, setPosts] = useState<DemoPost[]>([
-    {
-      id: "hp1",
-      type: "Post • Haunting",
-      title: "Pendle stile shadow",
-      desc: "Figure crossed footpath, EMF spike.",
-      locationId: "pendle",
-      authorId: "u_scott",
-      authorName: "Scott",
-      createdAt: Date.now() - 1000 * 60 * 60 * 2,
-    },
-    {
-      id: "up1",
-      type: "Post • UFO",
-      title: "Triangle over ridge",
-      desc: "Three lights, silent, drift 12s.",
-      locationId: "snowdonia",
-      authorId: "u_jay",
-      authorName: "Jay",
-      createdAt: Date.now() - 1000 * 60 * 60 * 4,
-    },
-    {
-      id: "cp1",
-      type: "Post • Cryptid",
-      title: "Fresh prints by stream",
-      desc: "Large feline pads, 9cm width.",
-      locationId: "bodmin",
-      authorId: "u_andy",
-      authorName: "Andy",
-      createdAt: Date.now() - 1000 * 60 * 60 * 6,
-    },
-  ]);
-
-  /* ------------ EVENTS / MARKET / COLLAB ------------ */
-  const [events, setEvents] = useState<EventItem[]>([
-    {
-      id: "e1",
-      title: "Mill Street Barracks — Overnight Investigation",
-      description: "Guided sessions, small groups.",
-      locationText: "St Helens, WA10",
-      startISO: "2025-12-05T20:00",
-      endISO: "2025-12-06T02:00",
-      priceText: "£35 pp",
-      link: "https://example.com/tickets",
-      createdAt: Date.now() - 1000 * 60 * 60 * 24,
-      postedBy: { id: "u_scott", name: "Scott" },
-    },
-  ]);
+  /* ------------ USERS / LOCATIONS / CONTENT (empty, ready for Supabase) --- */
+  // Replace these with Supabase queries (see TODO below)
+  const [usersById, setUsersById] = useState<Record<string, UserMini>>({});
+  const [locations, setLocations] = useState<LocationData[]>([]);
+  const [posts, setPosts] = useState<DemoPost[]>([]);
+  const [events, setEvents] = useState<EventItem[]>([]);
   const [market, setMarket] = useState<MarketplaceItem[]>([]);
   const [collabs, setCollabs] = useState<CollabItem[]>([]);
   const [marketFilter, setMarketFilter] = useState<"All" | "Product" | "Service">("All");
 
+  /* ------------------------ TODO: Supabase fetching ------------------------ */
+  // Example scaffold (uncomment once you have supabase client set up)
+  // import { createClient } from '@supabase/supabase-js'
+  // const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  //
+  // useEffect(() => {
+  //   (async () => {
+  //     const { data: locs } = await supabase.from('locations').select('*');
+  //     if (locs) setLocations(locs as LocationData[]);
+  //
+  //     const { data: p } = await supabase.from('posts').select('*').order('createdAt', { ascending: false });
+  //     if (p) setPosts(p as DemoPost[]);
+  //
+  //     const { data: ev } = await supabase.from('events').select('*').order('startISO');
+  //     if (ev) setEvents(ev as EventItem[]);
+  //
+  //     const { data: mk } = await supabase.from('market').select('*').order('createdAt', { ascending: false });
+  //     if (mk) setMarket(mk as MarketplaceItem[]);
+  //
+  //     const { data: cb } = await supabase.from('collabs').select('*').order('createdAt', { ascending: false });
+  //     if (cb) setCollabs(cb as CollabItem[]);
+  //
+  //     const { data: users } = await supabase.from('users').select('*');
+  //     if (users) {
+  //       const map: Record<string, UserMini> = {};
+  //       for (const u of users) map[u.id] = { id: u.id, name: u.name, team: u.team, location: u.location };
+  //       setUsersById(map);
+  //     }
+  //   })();
+  // }, []);
+
   /* ------------ COMMENTS (all entities) ------------ */
-  // key pattern: post:<id> | event:<id> | market:<id> | collab:<id>
-  const [comments, setComments] = useState<Record<string, CommentItem[]>>({});
-  function addComment(key: string, c: CommentItem) {
+  const [comments, setComments] = useState<Record<string, any[]>>({});
+  function addComment(key: string, c: any) {
     setComments((prev) => ({ ...prev, [key]: [c, ...(prev[key] ?? [])] }));
   }
 
@@ -370,7 +277,7 @@ export default function Home() {
     setSelectedUserId(null);
   }
   function openUser(userId: string) {
-    const u = users[userId] ?? { id: userId, name: "User" };
+    const u = usersById[userId] ?? { id: userId, name: "User" };
     setDrawerUser(u);
     setUserDrawerOpen(true);
     setSelectedUserId(userId);
@@ -378,7 +285,7 @@ export default function Home() {
     setTab("home");
   }
 
-  /* ------------ FEEDS ------------ */
+  /* ------------ FEEDS (filtered) ------------ */
   const postsForFeed = useMemo(() => {
     const base = posts.filter(
       (p) =>
@@ -394,7 +301,7 @@ export default function Home() {
     return base;
   }, [posts, tab, searchQuery, selectedUserId, selectedLocationId]);
 
-  /* --------------------- ADD POST (image + tags universal) ----------------- */
+  /* --------------------- ADD POST (UI only; replace with Supabase) -------- */
   const [postFormOpen, setPostFormOpen] = useState(false);
   const { url: postImg, name: postImgName, onChange: postImgChange, clear: postImgClear } = useImagePreview();
   const [postTagUsers, setPostTagUsers] = useState<string[]>([]);
@@ -431,7 +338,7 @@ export default function Home() {
         tagLocationIds: postTagLocs,
         createdAt: Date.now(),
       };
-      onSubmit(p);
+      onSubmit(p); // TODO: replace with Supabase insert
       onClose();
       postImgClear();
       setPostTagUsers([]);
@@ -456,7 +363,8 @@ export default function Home() {
         <div>
           <div className="text-sm text-neutral-300 mb-1">Tag friends</div>
           <div className="flex flex-wrap gap-2">
-            {Object.values(users).map((u) => (
+            {Object.values(usersById).length === 0 && <span className="text-xs text-neutral-600">No users yet.</span>}
+            {Object.values(usersById).map((u) => (
               <button
                 key={u.id}
                 type="button"
@@ -523,7 +431,7 @@ export default function Home() {
     );
   }
 
-  /* -------------------- ADD LOCATION (image upload too) -------------------- */
+  /* -------------------- ADD LOCATION (UI only; replace with Supabase) ------ */
   const [locFormOpen, setLocFormOpen] = useState(false);
   const [newLoc, setNewLoc] = useState<{ lng: number; lat: number } | null>(null);
   const { url: locImg, name: locImgName, onChange: locImgChange, clear: locImgClear } = useImagePreview();
@@ -562,9 +470,9 @@ export default function Home() {
         address: String(fd.get("address") || "").trim() || undefined,
         priceInfo: String(fd.get("priceInfo") || "").trim() || undefined,
         website: String(fd.get("website") || "").trim() || undefined,
-        imageUrl: locImg, // local preview demo
+        imageUrl: locImg, // local preview only
       };
-      onSubmit(l);
+      onSubmit(l); // TODO: replace with Supabase insert
       onClose();
       locImgClear();
     }
@@ -593,9 +501,7 @@ export default function Home() {
               <img src={locImg} alt="preview" className="max-h-64 w-auto rounded-md border border-neutral-800" />
               <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
                 <span className="truncate">{locImgName}</span>
-                <button type="button" onClick={locImgClear} className="text-neutral-300 hover:underline">
-                  Remove
-                </button>
+                <button type="button" onClick={locImgClear} className="text-neutral-300 hover:underline">Remove</button>
               </div>
             </div>
           )}
@@ -621,7 +527,7 @@ export default function Home() {
     );
   }
 
-  /* ------------------- ADD EVENT / LISTING / COLLAB (images) ------------------- */
+  /* ------------------- ADD EVENT / LISTING / COLLAB (UI only) -------------- */
   const [eventFormOpen, setEventFormOpen] = useState(false);
   const { url: evImg, name: evImgName, onChange: evImgChange, clear: evImgClear } = useImagePreview();
 
@@ -641,7 +547,7 @@ export default function Home() {
         imageUrl: evImg,
         createdAt: Date.now(),
         postedBy: { id: currentUser.id, name: currentUser.name },
-      });
+      }); // TODO: replace with Supabase insert
       onClose();
       evImgClear();
     }
@@ -669,7 +575,7 @@ export default function Home() {
           {evImg && (
             <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={evImg} alt="preview" className="max-h-64 w-auto rounded-md border border-neutral-800" />
+              <img src={evImg} alt="preview" className="mt-2 rounded-md border border-neutral-800" />
               <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
                 <span className="truncate">{evImgName}</span>
                 <button type="button" onClick={evImgClear} className="text-neutral-300 hover:underline">Remove</button>
@@ -707,7 +613,7 @@ export default function Home() {
         contactOrLink: String(fd.get("contact") || "").trim() || undefined,
         createdAt: Date.now(),
         postedBy: { id: currentUser.id, name: currentUser.name },
-      });
+      }); // TODO: replace with Supabase insert
       onClose();
       mkImgClear();
     }
@@ -732,7 +638,7 @@ export default function Home() {
           {mkImg && (
             <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={mkImg} alt="preview" className="max-h-64 w-auto rounded-md border border-neutral-800" />
+              <img src={mkImg} className="mt-2 rounded-md border border-neutral-800" alt="" />
               <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
                 <span className="truncate">{mkImgName}</span>
                 <button type="button" onClick={mkImgClear} className="text-neutral-300 hover:underline">Remove</button>
@@ -768,7 +674,7 @@ export default function Home() {
         imageUrl: cbImg,
         createdAt: Date.now(),
         postedBy: { id: currentUser.id, name: currentUser.name },
-      });
+      }); // TODO: replace with Supabase insert
       onClose();
       cbImgClear();
     }
@@ -789,7 +695,7 @@ export default function Home() {
           {cbImg && (
             <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={cbImg} alt="preview" className="max-h-64 w-auto rounded-md border border-neutral-800" />
+              <img src={cbImg} alt="preview" className="mt-2 rounded-md border border-neutral-800" />
               <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
                 <span className="truncate">{cbImgName}</span>
                 <button type="button" onClick={cbImgClear} className="text-neutral-300 hover:underline">Remove</button>
@@ -806,45 +712,23 @@ export default function Home() {
     );
   }
 
-  /* --------------------- Comment modal (image + tags) ---------------------- */
-  const [commentOpen, setCommentOpen] = useState(false);
-  const [commentKey, setCommentKey] = useState<string | null>(null);
-  const [commentText, setCommentText] = useState("");
-  const [commentTags, setCommentTags] = useState<string[]>([]);
-  const { url: cImg, name: cImgName, onChange: cImgChange, clear: cImgClear } = useImagePreview();
-
-  function openComment(forKey: string) {
-    setCommentKey(forKey);
-    setCommentOpen(true);
-  }
-  function submitComment() {
-    if (!commentKey) return;
-    const c: CommentItem = {
-      id: crypto.randomUUID(),
-      authorId: currentUser.id,
-      authorName: currentUser.name,
-      text: commentText.trim(),
-      imageUrl: cImg,
-      tagUserIds: commentTags,
-      createdAt: Date.now(),
-    };
-    addComment(commentKey, c);
-    // (demo) notification: console log who was tagged
-    if (commentTags.length) console.log("Notify tagged users:", commentTags);
-    // reset
-    setCommentOpen(false);
-    setCommentText("");
-    setCommentTags([]);
-    cImgClear();
-  }
-
   /* ---------------------------- RENDER START ------------------------------- */
   return (
     <main className="h-screen bg-[#0B0C0E] text-white flex flex-col">
       {/* Sticky header + map */}
       <div className="sticky top-0 z-40 bg-[#0B0C0E]">
-        <StickyNav search={searchQuery} onSearchChange={setSearchQuery} onProfileClick={() => alert("(demo) Profile")} />
+        <StickyNav search={searchQuery} onSearchChange={setSearchQuery} onProfileClick={() => alert("(profile)")} />
         <SideDrawerNav current={tab} onSelect={handleSelectTab} onSelectHome={goHome} />
+
+        {/* NEW: FilterBar wired */}
+        <div className="mx-auto max-w-6xl px-4 pb-3">
+          <FilterBar
+            query={searchQuery}
+            setQuery={setSearchQuery}
+            activeTab={tab}
+            onTabChange={handleSelectTab}
+          />
+        </div>
 
         <div className="relative mx-auto max-w-6xl px-4 pb-3">
           <LiveMap
@@ -879,9 +763,9 @@ export default function Home() {
         stars={drawerUser ? userStars[drawerUser.id] ?? 0 : 0}
         onGiveStar={(uid) => giveUserStar(uid)}
         onFollow={(uid) => toggleFollowUser(uid)}
-        onMessage={(uid) => alert(`(demo) Open message composer to ${uid}`)}
-        onBlock={(uid) => alert(`(demo) Blocked ${uid}`)}
-        onReport={(uid) => alert(`(demo) Report submitted for ${uid}`)}
+        onMessage={(uid) => alert(`(message) ${uid}`)}
+        onBlock={(uid) => alert(`(block) ${uid}`)}
+        onReport={(uid) => alert(`(report) ${uid}`)}
         onClose={() => setUserDrawerOpen(false)}
       />
 
@@ -894,7 +778,7 @@ export default function Home() {
               {selectedLocationId
                 ? locations.find((l) => l.id === selectedLocationId)?.title ?? "Location"
                 : selectedUserId
-                ? `${users[selectedUserId]?.name ?? "User"} — posts`
+                ? `${usersById[selectedUserId]?.name ?? "User"} — posts`
                 : tab === "home"
                 ? "HOME"
                 : tab === "hauntings"
@@ -931,7 +815,7 @@ export default function Home() {
                           setSelectedLocationId(null);
                         }}
                       >
-                        {users[uid]?.name ?? uid}
+                        {usersById[uid]?.name ?? uid}
                       </Chip>
                     ))}
                   </div>
@@ -983,7 +867,7 @@ export default function Home() {
                         <div className="text-neutral-400 text-xs">
                           {p.type} • by{" "}
                           <button className="text-cyan-300 hover:underline" onClick={() => openUser(p.authorId)}>
-                            {p.authorName}
+                            {usersById[p.authorId]?.name ?? p.authorName}
                           </button>
                         </div>
                         <StarBadge value={postStars[p.id] ?? 0} onClick={() => givePostStar(p.id)} />
@@ -996,7 +880,7 @@ export default function Home() {
                           Tagged:&nbsp;
                           {p.tagUserIds.map((uid) => (
                             <span key={uid} className="mr-2 text-cyan-300">
-                              {users[uid]?.name ?? uid}
+                              {usersById[uid]?.name ?? uid}
                             </span>
                           ))}
                         </div>
@@ -1059,16 +943,6 @@ export default function Home() {
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img src={c.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800 max-h-60 w-auto" />
                               )}
-                              {c.tagUserIds?.length ? (
-                                <div className="mt-1 text-xs text-neutral-400">
-                                  Tagged:&nbsp;
-                                  {c.tagUserIds.map((uid) => (
-                                    <span key={uid} className="mr-2 text-cyan-300">
-                                      {users[uid]?.name ?? uid}
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : null}
                             </div>
                           ))}
                         </div>
@@ -1076,6 +950,9 @@ export default function Home() {
                     </article>
                   );
                 })}
+              {postsForFeed.length === 0 && (
+                <div className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 text-neutral-400 text-sm">No posts yet.</div>
+              )}
             </div>
           )}
 
@@ -1128,25 +1005,12 @@ export default function Home() {
                           </button>
                           <div className="text-xs text-neutral-500">{(comments[cKey]?.length ?? 0)} comments</div>
                         </div>
-                        {comments[cKey]?.length ? (
-                          <div className="mt-2 grid gap-2">
-                            {comments[cKey].map((c) => (
-                              <div key={c.id} className="rounded-md border border-neutral-800 bg-neutral-950 p-2">
-                                <div className="text-xs text-neutral-400">
-                                  by <span className="text-cyan-300">{c.authorName}</span> • {new Date(c.createdAt).toLocaleString()}
-                                </div>
-                                <div className="text-sm text-neutral-200">{c.text}</div>
-                                {c.imageUrl && (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={c.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800 max-h-60 w-auto" />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
                       </article>
                     );
                   })}
+                {events.length === 0 && (
+                  <div className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 text-neutral-400 text-sm">No events yet.</div>
+                )}
               </div>
             </>
           )}
@@ -1158,15 +1022,9 @@ export default function Home() {
                 Marketplace listings are user-posted advertisements. Parasphere isn’t a party to any transaction and accepts no liability. Do your own checks, warranties, and payments externally.
               </SectionDisclaimer>
               <div className="mb-3 flex items-center gap-2">
-                <Chip active={marketFilter === "All"} onClick={() => setMarketFilter("All")}>
-                  All
-                </Chip>
-                <Chip active={marketFilter === "Product"} onClick={() => setMarketFilter("Product")}>
-                  Products
-                </Chip>
-                <Chip active={marketFilter === "Service"} onClick={() => setMarketFilter("Service")}>
-                  Services
-                </Chip>
+                <Chip active={marketFilter === "All"} onClick={() => setMarketFilter("All")}>All</Chip>
+                <Chip active={marketFilter === "Product"} onClick={() => setMarketFilter("Product")}>Products</Chip>
+                <Chip active={marketFilter === "Service"} onClick={() => setMarketFilter("Service")}>Services</Chip>
                 <div className="grow" />
                 <button
                   onClick={() => setListingFormOpen(true)}
@@ -1212,22 +1070,6 @@ export default function Home() {
                           </button>
                           <div className="text-xs text-neutral-500">{(comments[cKey]?.length ?? 0)} comments</div>
                         </div>
-                        {comments[cKey]?.length ? (
-                          <div className="mt-2 grid gap-2">
-                            {comments[cKey].map((c) => (
-                              <div key={c.id} className="rounded-md border border-neutral-800 bg-neutral-950 p-2">
-                                <div className="text-xs text-neutral-400">
-                                  by <span className="text-cyan-300">{c.authorName}</span> • {new Date(c.createdAt).toLocaleString()}
-                                </div>
-                                <div className="text-sm text-neutral-200">{c.text}</div>
-                                {c.imageUrl && (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={c.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800 max-h-60 w-auto" />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
                       </article>
                     );
                   })}
@@ -1286,22 +1128,6 @@ export default function Home() {
                           </button>
                           <div className="text-xs text-neutral-500">{(comments[cKey]?.length ?? 0)} comments</div>
                         </div>
-                        {comments[cKey]?.length ? (
-                          <div className="mt-2 grid gap-2">
-                            {comments[cKey].map((cm) => (
-                              <div key={cm.id} className="rounded-md border border-neutral-800 bg-neutral-950 p-2">
-                                <div className="text-xs text-neutral-400">
-                                  by <span className="text-cyan-300">{cm.authorName}</span> • {new Date(cm.createdAt).toLocaleString()}
-                                </div>
-                                <div className="text-sm text-neutral-200">{cm.text}</div>
-                                {cm.imageUrl && (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={cm.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800 max-h-60 w-auto" />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
                       </article>
                     );
                   })}
@@ -1345,99 +1171,11 @@ export default function Home() {
 
       {/* Comment dialog (universal) */}
       <Modal
-        open={commentOpen}
-        onClose={() => {
-          setCommentOpen(false);
-          setCommentText("");
-          setCommentTags([]);
-          cImgClear();
-        }}
+        open={false /* wire when needed */}
+        onClose={() => {}}
       >
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold">Add Comment</h3>
-          <textarea
-            value={commentText}
-            onChange={(e) => setCommentText(e.target.value)}
-            placeholder="Write your comment…"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <div>
-            <div className="text-sm text-neutral-300 mb-1">Attach photo (optional)</div>
-            <input type="file" accept="image/*" onChange={cImgChange} className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 w-full" />
-            {cImg && (
-              <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={cImg} alt="preview" className="max-h-56 w-auto rounded-md border border-neutral-800" />
-                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-                  <span className="truncate">{cImgName}</span>
-                  <button type="button" onClick={cImgClear} className="text-neutral-300 hover:underline">Remove</button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div className="text-sm text-neutral-300 mb-1">Tag friends (optional)</div>
-            <div className="flex flex-wrap gap-2">
-              {Object.values(users).map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() =>
-                    setCommentTags((prev) => (prev.includes(u.id) ? prev.filter((x) => x !== u.id) : [...prev, u.id]))
-                  }
-                  className={`rounded-full border px-3 py-1 text-sm ${
-                    commentTags.includes(u.id) ? "border-cyan-500 bg-cyan-500/10 text-cyan-300" : "border-neutral-700 text-neutral-300"
-                  }`}
-                >
-                  {u.name}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => {
-                setCommentOpen(false);
-                setCommentText("");
-                setCommentTags([]);
-                cImgClear();
-              }}
-              className="rounded-md border border-neutral-700 px-3 py-1.5"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={submitComment}
-              disabled={!commentKey || (!commentText.trim() && !cImg)}
-              className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-50"
-            >
-              Post comment
-            </button>
-          </div>
-        </div>
+        {/* Intentionally empty for now */}
       </Modal>
     </main>
   );
 }
-
-/* ------------------------------ User Mini type ---------------------------- */
-export type UserMini = {
-  id: string;
-  name: string;
-  team?: string;
-  location?: string;
-};
-
-
-
-
-
-
-
-
-
-
-
-
