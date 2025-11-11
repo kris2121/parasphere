@@ -1,16 +1,26 @@
 'use client';
 
+import LogoWordmark from './LogoWordmark';
+
 export default function StickyNav() {
   return (
-    <div className="sticky top-0 z-50 bg-black/80 border-b border-neutral-800 backdrop-blur">
-      <div className="max-w-6xl mx-auto flex items-center justify-between px-4 py-2 text-cyan-300 font-semibold">
-        <div>ParaSphere</div>
-        <nav className="flex gap-3 text-sm">
-          <button className="hover:text-cyan-100">UFO</button>
-          <button className="hover:text-cyan-100">Cryptids</button>
-          <button className="hover:text-cyan-100">Hauntings</button>
-        </nav>
+    <div className="sticky top-0 z-50 bg-[#0B0C0E]/95 backdrop-blur-md border-b border-neutral-800">
+      <div className="mx-auto max-w-6xl px-4 py-2 flex items-center justify-between gap-3">
+
+        {/* LEFT: brand (centered on small screens via justify-between + invisible spacer on right) */}
+        <div className="flex-1 flex items-center">
+          {/* Swap this for an <img src="/logo.svg" alt="Parasphere" className="h-6 w-auto" /> when you have a logo */}
+          <LogoWordmark size="md" />
+        </div>
+
+        {/* RIGHT: reserved for future icons (keeps single-row layout tidy) */}
+        <div className="flex-1 hidden sm:flex items-center justify-end gap-2">
+          {/* e.g., notifications, profile avatar later */}
+        </div>
       </div>
     </div>
   );
 }
+
+
+
