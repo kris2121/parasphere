@@ -1,7 +1,20 @@
 'use client';
 
 import { useEffect, useMemo, useState, FormEvent } from 'react';
-import { MarketplaceItem } from '@/app/page'; // or wherever this type lives; adjust the import path if needed
+
+/** Local copy of the shape we use elsewhere */
+type MarketplaceItem = {
+  id: string;
+  kind: 'Product' | 'Service';
+  title: string;
+  description: string;
+  price?: number;
+  locationText?: string;
+  imageUrl?: string;
+  contactOrLink?: string;
+  createdAt: number;
+  postedBy: { id: string; name: string };
+};
 
 type Props = {
   open: boolean;
@@ -24,7 +37,6 @@ export default function AddListingModal({ open, onClose, onCreate }: Props) {
   // preview for local image
   useEffect(() => {
     if (!imageDataUrl) return;
-    // revoke previous object URL
     if (imageUrl) URL.revokeObjectURL(imageUrl);
     const blob = dataURLtoBlob(imageDataUrl);
     const url = URL.createObjectURL(blob);
@@ -169,3 +181,4 @@ function dataURLtoBlob(dataUrl: string): Blob {
   while (n--) u8arr[n] = bstr.charCodeAt(n);
   return new Blob([u8arr], { type: mime });
 }
+
