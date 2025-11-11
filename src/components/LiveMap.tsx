@@ -9,7 +9,7 @@ mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 export type LocationData = {
   id: string;
   title: string;
-  type: 'HAUNTING' | 'UFO' | 'CRYPTID' | 'EVENT';
+  type: "HAUNTING" | "UFO" | "CRYPTID" | "EVENT";
   lat: number;
   lng: number;
   imageUrl?: string;
@@ -17,6 +17,10 @@ export type LocationData = {
   address?: string;
   priceInfo?: string;
   website?: string;
+
+  // NEW: for EVENT pins (optional)
+  startISO?: string;
+  endISO?: string;
 };
 
 type Props = {
