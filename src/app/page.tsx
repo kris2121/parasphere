@@ -6,6 +6,7 @@ import LocationDrawer from '@/components/LocationDrawer';
 import UserDrawer, { UserMini } from '@/components/UserDrawer';
 import MapActions from '@/components/MapActions';
 import FilterBar from '@/components/FilterBar';
+import type { TabKey } from '@/components/FilterBar';
 
 /* =========================== Country Scope Context =========================== */
 
@@ -209,7 +210,7 @@ function Modal({
   return (
     <>
       <div className="fixed inset-0 z-[90] bg-black/60" onClick={onClose} />
-      <div className={`fixed left-1/2 top-1/2 z-[91] -translate-x-1/2 -translate-y-1/2 w-[92vw] ${maxW} rounded-xl border border-neutral-800 bg-neutral-950 p-4`}>
+      <div className={`fixed left-1/2 top-1/2 z-[91] -translate-x-1/2 -translate-y-1/2 w=[92vw] ${maxW} rounded-xl border border-neutral-800 bg-neutral-950 p-4`}>
         {children}
       </div>
     </>
@@ -315,6 +316,8 @@ function useImagePreview() {
 
 /* ================================ Page Inner ================================ */
 
+const DEFAULT_TAB: TabKey = 'home';
+
 export default function Page() {
   return (
     <ScopeProvider>
@@ -334,7 +337,8 @@ function PageInner() {
     u_current: { id: 'u_current', name: 'You' },
   });
 
-  const [tab, setTab] = useState<string>('home');
+  // 🔧 Tab is now strongly typed
+  const [tab, setTab] = useState<TabKey>(DEFAULT_TAB);
   const [searchQuery, setSearchQuery] = useState('');
   const mapRef = useRef<LiveMapHandle>(null);
 
@@ -426,7 +430,8 @@ function PageInner() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
 
-  function handleSelectTab(next: string) {
+  // 🔧 Handler takes TabKey now
+  function handleSelectTab(next: TabKey) {
     if (next === 'profile') {
       openUser(currentUser.id);
       return;
@@ -436,7 +441,8 @@ function PageInner() {
     setSelectedLocationId(null);
   }
 
-  function allowedTypesForTab(t: string): Array<LocationData['type']> | null {
+  // 🔧 Helper receives TabKey
+  function allowedTypesForTab(t: TabKey): Array<LocationData['type']> | null {
     if (t === 'hauntings') return ['HAUNTING'];
     if (t === 'ufos') return ['UFO'];
     if (t === 'cryptids') return ['CRYPTID'];
@@ -1487,4 +1493,5 @@ function PageInner() {
     </main>
   );
 }
+
 
