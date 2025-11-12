@@ -1,8 +1,6 @@
 'use client';
 
 import { useMemo, useRef, useState, FormEvent, useEffect } from "react";
-import StickyNav from "@/components/StickyNav";
-import SideDrawerNav from "@/components/SideDrawerNav";
 import LiveMap, { LocationData, LiveMapHandle } from "@/components/LiveMap";
 import LocationDrawer from "@/components/LocationDrawer";
 import UserDrawer, { UserMini } from "@/components/UserDrawer";
@@ -176,7 +174,6 @@ export default function Home() {
   const giveCollabStar = (id: string) => inc(setCollabStars, id);
 
   /* ------------ USERS / LOCATIONS / CONTENT (empty, ready for Supabase) --- */
-  // Replace these with Supabase queries (see TODO below)
   const [usersById, setUsersById] = useState<Record<string, UserMini>>({});
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [posts, setPosts] = useState<DemoPost[]>([]);
@@ -185,37 +182,6 @@ export default function Home() {
   const [collabs, setCollabs] = useState<CollabItem[]>([]);
   const [marketFilter, setMarketFilter] = useState<"All" | "Product" | "Service">("All");
 
-  /* ------------------------ TODO: Supabase fetching ------------------------ */
-  // Example scaffold (uncomment once you have supabase client set up)
-  // import { createClient } from '@supabase/supabase-js'
-  // const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
-  //
-  // useEffect(() => {
-  //   (async () => {
-  //     const { data: locs } = await supabase.from('locations').select('*');
-  //     if (locs) setLocations(locs as LocationData[]);
-  //
-  //     const { data: p } = await supabase.from('posts').select('*').order('createdAt', { ascending: false });
-  //     if (p) setPosts(p as DemoPost[]);
-  //
-  //     const { data: ev } = await supabase.from('events').select('*').order('startISO');
-  //     if (ev) setEvents(ev as EventItem[]);
-  //
-  //     const { data: mk } = await supabase.from('market').select('*').order('createdAt', { ascending: false });
-  //     if (mk) setMarket(mk as MarketplaceItem[]);
-  //
-  //     const { data: cb } = await supabase.from('collabs').select('*').order('createdAt', { ascending: false });
-  //     if (cb) setCollabs(cb as CollabItem[]);
-  //
-  //     const { data: users } = await supabase.from('users').select('*');
-  //     if (users) {
-  //       const map: Record<string, UserMini> = {};
-  //       for (const u of users) map[u.id] = { id: u.id, name: u.name, team: u.team, location: u.location };
-  //       setUsersById(map);
-  //     }
-  //   })();
-  // }, []);
-
   /* ------------ COMMENTS (all entities) ------------ */
   const [comments, setComments] = useState<Record<string, any[]>>({});
   function addComment(key: string, c: any) {
@@ -223,35 +189,34 @@ export default function Home() {
   }
 
   /* --------------------- Comment modal (image + tags) ---------------------- */
-const [commentOpen, setCommentOpen] = useState(false);
-const [commentKey, setCommentKey] = useState<string | null>(null);
-const [commentText, setCommentText] = useState("");
-const [commentTags, setCommentTags] = useState<string[]>([]);
-const { url: cImg, name: cImgName, onChange: cImgChange, clear: cImgClear } = useImagePreview();
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [commentKey, setCommentKey] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState("");
+  const [commentTags, setCommentTags] = useState<string[]>([]);
+  const { url: cImg, name: cImgName, onChange: cImgChange, clear: cImgClear } = useImagePreview();
 
-function openComment(forKey: string) {
-  setCommentKey(forKey);
-  setCommentOpen(true);
-}
+  function openComment(forKey: string) {
+    setCommentKey(forKey);
+    setCommentOpen(true);
+  }
 
-function submitComment() {
-  if (!commentKey) return;
-  const c = {
-    id: crypto.randomUUID(),
-    authorId: currentUser.id,
-    authorName: currentUser.name,
-    text: commentText.trim(),
-    imageUrl: cImg,
-    tagUserIds: commentTags,
-    createdAt: Date.now(),
-  };
-  addComment(commentKey, c); // local-only for now (Supabase later)
-  setCommentOpen(false);
-  setCommentText("");
-  setCommentTags([]);
-  cImgClear();
-}
-
+  function submitComment() {
+    if (!commentKey) return;
+    const c = {
+      id: crypto.randomUUID(),
+      authorId: currentUser.id,
+      authorName: currentUser.name,
+      text: commentText.trim(),
+      imageUrl: cImg,
+      tagUserIds: commentTags,
+      createdAt: Date.now(),
+    };
+    addComment(commentKey, c);
+    setCommentOpen(false);
+    setCommentText("");
+    setCommentTags([]);
+    cImgClear();
+  }
 
   /* ------------ SELECTION ------------ */
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
@@ -316,23 +281,7 @@ function submitComment() {
     setTab("home");
   }
 
-  /* ------------ FEEDS (filtered) ------------ */
-  const postsForFeed = useMemo(() => {
-    const base = posts.filter(
-      (p) =>
-        (!selectedUserId || p.authorId === selectedUserId) &&
-        (!selectedLocationId || p.locationId === selectedLocationId) &&
-        (!searchQuery ||
-          p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.desc.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-    if (tab === "hauntings") return base.filter((p) => p.type.includes("Haunting"));
-    if (tab === "ufos") return base.filter((p) => p.type.includes("UFO"));
-    if (tab === "cryptids") return base.filter((p) => p.type.includes("Cryptid"));
-    return base;
-  }, [posts, tab, searchQuery, selectedUserId, selectedLocationId]);
-
-  /* --------------------- ADD POST (UI only; replace with Supabase) -------- */
+  /* -------------------- ADD POST / LOCATION / EVENT / LISTING / COLLAB ---- */
   const [postFormOpen, setPostFormOpen] = useState(false);
   const { url: postImg, name: postImgName, onChange: postImgChange, clear: postImgClear } = useImagePreview();
   const [postTagUsers, setPostTagUsers] = useState<string[]>([]);
@@ -369,7 +318,7 @@ function submitComment() {
         tagLocationIds: postTagLocs,
         createdAt: Date.now(),
       };
-      onSubmit(p); // TODO: replace with Supabase insert
+      onSubmit(p);
       onClose();
       postImgClear();
       setPostTagUsers([]);
@@ -462,7 +411,6 @@ function submitComment() {
     );
   }
 
-  /* -------------------- ADD LOCATION (UI only; replace with Supabase) ------ */
   const [locFormOpen, setLocFormOpen] = useState(false);
   const [newLoc, setNewLoc] = useState<{ lng: number; lat: number } | null>(null);
   const { url: locImg, name: locImgName, onChange: locImgChange, clear: locImgClear } = useImagePreview();
@@ -501,9 +449,9 @@ function submitComment() {
         address: String(fd.get("address") || "").trim() || undefined,
         priceInfo: String(fd.get("priceInfo") || "").trim() || undefined,
         website: String(fd.get("website") || "").trim() || undefined,
-        imageUrl: locImg, // local preview only
+        imageUrl: locImg,
       };
-      onSubmit(l); // TODO: replace with Supabase insert
+      onSubmit(l);
       onClose();
       locImgClear();
     }
@@ -543,10 +491,16 @@ function submitComment() {
           <input value={lat} onChange={(e) => setLat(Number(e.target.value))} placeholder="Lat" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
         </div>
         <div className="flex gap-2">
-          <button type="button" onClick={() => {
-            const c = mapRef.current?.getCenter();
-            if (c) { setLng(c[0]); setLat(c[1]); }
-          }} className="rounded-md border border-neutral-700 px-3 py-1.5">Use map center</button>
+          <button
+            type="button"
+            onClick={() => {
+              const c = mapRef.current?.getCenter();
+              if (c) { setLng(c[0]); setLat(c[1]); }
+            }}
+            className="rounded-md border border-neutral-700 px-3 py-1.5"
+          >
+            Use map center
+          </button>
           <button type="button" onClick={useMyLocation} className="rounded-md border border-neutral-700 px-3 py-1.5">Use my location</button>
         </div>
 
@@ -558,7 +512,6 @@ function submitComment() {
     );
   }
 
-  /* ------------------- ADD EVENT / LISTING / COLLAB (UI only) -------------- */
   const [eventFormOpen, setEventFormOpen] = useState(false);
   const { url: evImg, name: evImgName, onChange: evImgChange, clear: evImgClear } = useImagePreview();
 
@@ -578,7 +531,7 @@ function submitComment() {
         imageUrl: evImg,
         createdAt: Date.now(),
         postedBy: { id: currentUser.id, name: currentUser.name },
-      }); // TODO: replace with Supabase insert
+      });
       onClose();
       evImgClear();
     }
@@ -606,7 +559,7 @@ function submitComment() {
           {evImg && (
             <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={evImg} alt="preview" className="mt-2 rounded-md border border-neutral-800" />
+              <img src={evImg} alt="" className="mt-2 rounded-md border border-neutral-800" />
               <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
                 <span className="truncate">{evImgName}</span>
                 <button type="button" onClick={evImgClear} className="text-neutral-300 hover:underline">Remove</button>
@@ -644,7 +597,7 @@ function submitComment() {
         contactOrLink: String(fd.get("contact") || "").trim() || undefined,
         createdAt: Date.now(),
         postedBy: { id: currentUser.id, name: currentUser.name },
-      }); // TODO: replace with Supabase insert
+      });
       onClose();
       mkImgClear();
     }
@@ -705,7 +658,7 @@ function submitComment() {
         imageUrl: cbImg,
         createdAt: Date.now(),
         postedBy: { id: currentUser.id, name: currentUser.name },
-      }); // TODO: replace with Supabase insert
+      });
       onClose();
       cbImgClear();
     }
@@ -726,7 +679,7 @@ function submitComment() {
           {cbImg && (
             <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={cbImg} alt="preview" className="mt-2 rounded-md border border-neutral-800" />
+              <img src={cbImg} alt="" className="mt-2 rounded-md border border-neutral-800" />
               <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
                 <span className="truncate">{cbImgName}</span>
                 <button type="button" onClick={cbImgClear} className="text-neutral-300 hover:underline">Remove</button>
@@ -745,63 +698,84 @@ function submitComment() {
 
   /* ---------------------------- RENDER START ------------------------------- */
   return (
-    <main className="h-screen bg-[#0B0C0E] text-white flex flex-col">
-      {/* Sticky header + map */}
-      <div className="sticky top-0 z-40 bg-[#0B0C0E]">
-        <StickyNav search={searchQuery} onSearchChange={setSearchQuery} onProfileClick={() => alert("(profile)")} />
-        <SideDrawerNav current={tab} onSelect={handleSelectTab} onSelectHome={goHome} />
+    <main className="min-h-screen bg-[#0B0C0E] text-white flex flex-col">
+      {/* APP HEADER: logo holder + FilterBar in the SAME row */}
+      <header className="sticky top-0 z-40 border-b border-neutral-800/60 bg-[#0B0C0E]/80 backdrop-blur">
+        <div className="mx-auto max-w-6xl px-4 py-2">
+          <div className="flex items-center gap-3">
+          {/* Logo */}
+<div className="flex h-15 w-15 items-center justify-center rounded-full bg-transparent">
+  {/* eslint-disable-next-line @next/next/no-img-element */}
+  <img
+    src="/logo-cyan.png"
+    alt="ParaSphere Logo"
+    className="h-15 w-15 object-contain"
+  />
+</div>
 
-        {/* NEW: FilterBar wired */}
-        <div className="mx-auto max-w-6xl px-4 pb-3">
-          <FilterBar
-            query={searchQuery}
-            setQuery={setSearchQuery}
-            activeTab={tab}
-            onTabChange={handleSelectTab}
-          />
+
+            {/* FilterBar: renders search + pills across full remaining width */}
+            <div className="flex-1 min-w-0">
+              <FilterBar
+                query={searchQuery}
+                setQuery={setSearchQuery}
+                activeTab={tab}
+                onTabChange={handleSelectTab}
+              />
+            </div>
+          </div>
         </div>
+      </header>
 
-        <div className="relative mx-auto max-w-6xl px-4 pb-3">
-          <LiveMap
-            ref={mapRef}
-            initialCenter={[-2.5, 54.3]}
-            overviewZoom={5.8}
-            heightVh={{ desktop: 48, mobile: 40 }}
-            locations={filteredLocations}
-            onOpen={openFromPin}
-          />
+      {/* MAP AREA — reduced height so more posts are visible; page scrolls naturally */}
+      <section className="relative mx-auto w-full max-w-6xl px-4 pb-3 pt-3">
+        <div className="relative">
+        <LiveMap
+  ref={mapRef}
+  initialCenter={[-2.5, 54.3]}
+  overviewZoom={5.8}
+  heightVh={{ desktop: 38, mobile: 32 }}
+  locations={filteredLocations}
+  onOpen={openFromPin}
+/>
+
+
           <MapActions onAddLocation={openAddLocation} />
+
+          {/* Right pop-out drawers OVER the map (they can scroll independently) */}
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-50 flex items-start justify-end p-3">
+            <div className="pointer-events-auto flex max-h-full flex-col gap-3 overflow-y-auto">
+              <LocationDrawer
+                open={drawerOpen}
+                location={drawerLoc}
+                postsForLocation={posts.filter((p) => p.locationId === drawerLoc?.id).sort((a, b) => b.createdAt - a.createdAt)}
+                locationStars={locationStars}
+                onGiveLocationStar={giveLocationStar}
+                onClickAuthor={(uid) => openUser(uid)}
+                onClickLocationTitle={() => drawerLoc && setSelectedLocationId(drawerLoc.id)}
+                onFollowLocation={(locId) => toggleFollowLocation(locId)}
+                isFollowed={drawerLoc ? followedLocations.includes(drawerLoc.id) : false}
+                onClose={() => setDrawerOpen(false)}
+              />
+
+              <UserDrawer
+                open={userDrawerOpen}
+                user={drawerUser}
+                stars={drawerUser ? userStars[drawerUser.id] ?? 0 : 0}
+                onGiveStar={(uid) => giveUserStar(uid)}
+                onFollow={(uid) => toggleFollowUser(uid)}
+                onMessage={(uid) => alert(`(message) ${uid}`)}
+                onBlock={(uid) => alert(`(block) ${uid}`)}
+                onReport={(uid) => alert(`(report) ${uid}`)}
+                onClose={() => setUserDrawerOpen(false)}
+              />
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Drawers */}
-      <LocationDrawer
-        open={drawerOpen}
-        location={drawerLoc}
-        postsForLocation={posts.filter((p) => p.locationId === drawerLoc?.id).sort((a, b) => b.createdAt - a.createdAt)}
-        locationStars={locationStars}
-        onGiveLocationStar={giveLocationStar}
-        onClickAuthor={(uid) => openUser(uid)}
-        onClickLocationTitle={() => drawerLoc && setSelectedLocationId(drawerLoc.id)}
-        onFollowLocation={(locId) => toggleFollowLocation(locId)}
-        isFollowed={drawerLoc ? followedLocations.includes(drawerLoc.id) : false}
-        onClose={() => setDrawerOpen(false)}
-      />
-
-      <UserDrawer
-        open={userDrawerOpen}
-        user={drawerUser}
-        stars={drawerUser ? userStars[drawerUser.id] ?? 0 : 0}
-        onGiveStar={(uid) => giveUserStar(uid)}
-        onFollow={(uid) => toggleFollowUser(uid)}
-        onMessage={(uid) => alert(`(message) ${uid}`)}
-        onBlock={(uid) => alert(`(block) ${uid}`)}
-        onReport={(uid) => alert(`(report) ${uid}`)}
-        onClose={() => setUserDrawerOpen(false)}
-      />
-
-      {/* Scrollable content */}
-      <section className="flex-1 overflow-y-auto">
+      {/* SCROLLABLE CONTENT / FEEDS — uses the page’s single scroll (no nested overflow) */}
+      <section>
         <div className="mx-auto max-w-6xl px-4 py-6">
           {/* HEADER */}
           <div className="mb-4">
@@ -888,7 +862,15 @@ function submitComment() {
           {/* --------------------------- FEEDS --------------------------- */}
           {["home", "hauntings", "ufos", "cryptids"].includes(tab) && (
             <div className="grid gap-4">
-              {postsForFeed
+              {posts
+                .filter(
+                  (p) =>
+                    (!selectedUserId || p.authorId === selectedUserId) &&
+                    (!selectedLocationId || p.locationId === selectedLocationId) &&
+                    (!searchQuery ||
+                      p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      p.desc.toLowerCase().includes(searchQuery.toLowerCase()))
+                )
                 .sort((a, b) => b.createdAt - a.createdAt)
                 .map((p) => {
                   const cKey = `post:${p.id}`;
@@ -981,7 +963,7 @@ function submitComment() {
                     </article>
                   );
                 })}
-              {postsForFeed.length === 0 && (
+              {posts.length === 0 && (
                 <div className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 text-neutral-400 text-sm">No posts yet.</div>
               )}
             </div>
@@ -1172,91 +1154,91 @@ function submitComment() {
       </section>
 
       {/* ------------------------------ MODALS ------------------------------- */}
-{/* Comment dialog (universal) */}
-<Modal
-  open={commentOpen}
-  onClose={() => {
-    setCommentOpen(false);
-    setCommentText("");
-    setCommentTags([]);
-    cImgClear();
-  }}
->
-  <div className="space-y-3">
-    <h3 className="text-lg font-semibold">Add Comment</h3>
-    <textarea
-      value={commentText}
-      onChange={(e) => setCommentText(e.target.value)}
-      placeholder="Write your comment…"
-      className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-    />
-    <div>
-      <div className="text-sm text-neutral-300 mb-1">Attach photo (optional)</div>
-      <input
-        type="file"
-        accept="image/*"
-        onChange={cImgChange}
-        className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 w-full"
-      />
-      {cImg && (
-        <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={cImg} alt="preview" className="max-h-56 w-auto rounded-md border border-neutral-800" />
-          <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-            <span className="truncate">{cImgName}</span>
-            <button type="button" onClick={cImgClear} className="text-neutral-300 hover:underline">Remove</button>
-          </div>
-        </div>
-      )}
-    </div>
-
-    {/* Optional: tag users (once usersById is populated) */}
-    <div>
-      <div className="text-sm text-neutral-300 mb-1">Tag friends (optional)</div>
-      <div className="flex flex-wrap gap-2">
-        {Object.values(usersById).map((u) => (
-          <button
-            key={u.id}
-            type="button"
-            onClick={() =>
-              setCommentTags((prev) => (prev.includes(u.id) ? prev.filter((x) => x !== u.id) : [...prev, u.id]))
-            }
-            className={`rounded-full border px-3 py-1 text-sm ${
-              commentTags.includes(u.id) ? "border-cyan-500 bg-cyan-500/10 text-cyan-300" : "border-neutral-700 text-neutral-300"
-            }`}
-          >
-            {u.name}
-          </button>
-        ))}
-        {Object.values(usersById).length === 0 && (
-          <span className="text-xs text-neutral-600">No users yet.</span>
-        )}
-      </div>
-    </div>
-
-    <div className="flex justify-end gap-2">
-      <button
-        onClick={() => {
+      {/* Comment dialog (universal) */}
+      <Modal
+        open={commentOpen}
+        onClose={() => {
           setCommentOpen(false);
           setCommentText("");
           setCommentTags([]);
           cImgClear();
         }}
-        className="rounded-md border border-neutral-700 px-3 py-1.5"
       >
-        Cancel
-      </button>
-      <button
-        onClick={submitComment}
-        disabled={!commentKey || (!commentText.trim() && !cImg)}
-        className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-50"
-      >
-        Post comment
-      </button>
-    </div>
-  </div>
-</Modal>
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold">Add Comment</h3>
+          <textarea
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            placeholder="Write your comment…"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <div>
+            <div className="text-sm text-neutral-300 mb-1">Attach photo (optional)</div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={cImgChange}
+              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 w-full"
+            />
+            {cImg && (
+              <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={cImg} alt="preview" className="max-h-56 w-auto rounded-md border border-neutral-800" />
+                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
+                  <span className="truncate">{cImgName}</span>
+                  <button type="button" onClick={cImgClear} className="text-neutral-300 hover:underline">Remove</button>
+                </div>
+              </div>
+            )}
+          </div>
 
+          {/* Optional: tag users (once usersById is populated) */}
+          <div>
+            <div className="text-sm text-neutral-300 mb-1">Tag friends (optional)</div>
+            <div className="flex flex-wrap gap-2">
+              {Object.values(usersById).map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() =>
+                    setCommentTags((prev) => (prev.includes(u.id) ? prev.filter((x) => x !== u.id) : [...prev, u.id]))
+                  }
+                  className={`rounded-full border px-3 py-1 text-sm ${
+                    commentTags.includes(u.id) ? "border-cyan-500 bg-cyan-500/10 text-cyan-300" : "border-neutral-700 text-neutral-300"
+                  }`}
+                >
+                  {u.name}
+                </button>
+              ))}
+              {Object.values(usersById).length === 0 && (
+                <span className="text-xs text-neutral-600">No users yet.</span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => {
+                setCommentOpen(false);
+                setCommentText("");
+                setCommentTags([]);
+                cImgClear();
+              }}
+              className="rounded-md border border-neutral-700 px-3 py-1.5"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={submitComment}
+              disabled={!commentKey || (!commentText.trim() && !cImg)}
+              className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-50"
+            >
+              Post comment
+            </button>
+          </div>
+        </div>
+      </Modal>
     </main>
   );
 }
+
