@@ -1,13 +1,14 @@
 'use client';
 
-import { useMemo, useRef, useState, FormEvent, useEffect } from "react";
-import LiveMap, { LocationData, LiveMapHandle } from "@/components/LiveMap";
-import LocationDrawer from "@/components/LocationDrawer";
-import UserDrawer, { UserMini } from "@/components/UserDrawer";
-import MapActions from "@/components/MapActions";
-import FilterBar from "@/components/FilterBar";
+import React from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import LiveMap, { LocationData, LiveMapHandle } from '@/components/LiveMap';
+import LocationDrawer from '@/components/LocationDrawer';
+import UserDrawer, { UserMini } from '@/components/UserDrawer';
+import MapActions from '@/components/MapActions';
+import FilterBar from '@/components/FilterBar';
 
-/* --------------------------------- UI bits -------------------------------- */
+/* ------------------------------ Small UI bits ------------------------------ */
 function StarBadge({ value, onClick }: { value: number; onClick?: () => void }) {
   return (
     <button
@@ -20,12 +21,45 @@ function StarBadge({ value, onClick }: { value: number; onClick?: () => void }) 
   );
 }
 
-function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active?: boolean;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1 text-sm ${
+        active
+          ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+          : 'border-neutral-700 text-neutral-300 hover:border-neutral-500'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Modal({
+  open,
+  onClose,
+  children,
+  maxW = 'max-w-xl',
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  maxW?: string;
+}) {
   if (!open) return null;
   return (
     <>
       <div className="fixed inset-0 z-[90] bg-black/60" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-[91] -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-xl rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+      <div className={`fixed left-1/2 top-1/2 z-[91] -translate-x-1/2 -translate-y-1/2 w-[92vw] ${maxW} rounded-xl border border-neutral-800 bg-neutral-950 p-4`}>
         {children}
       </div>
     </>
@@ -34,31 +68,16 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
 
 function SectionDisclaimer({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mb-4 rounded-lg border border-yellow-700/40 bg-yellow-900/10 text-yellow-200 text-sm px-3 py-2">
+    <div className="mb-4 rounded-lg border border-yellow-700/40 bg-yellow-900/10 px-3 py-2 text-sm text-yellow-200">
       {children}
     </div>
-  );
-}
-
-function Chip({ active, onClick, children }: { active?: boolean; onClick?: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-sm ${
-        active
-          ? "border-cyan-500 bg-cyan-500/10 text-cyan-300"
-          : "border-neutral-700 text-neutral-300 hover:border-neutral-500"
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
 /* --------------------------------- Types ---------------------------------- */
 type DemoPost = {
   id: string;
-  type: "Post • Haunting" | "Post • UFO" | "Post • Cryptid" | "Friend • Post";
+  type: 'Post • Haunting' | 'Post • UFO' | 'Post • Cryptid' | 'Friend • Post';
   title: string;
   desc: string;
   locationId?: string;
@@ -67,13 +86,12 @@ type DemoPost = {
   authorId: string;
   authorName: string;
   tagUserIds?: string[];
-  tagLocationIds?: string[];
   createdAt: number;
 };
 
 type MarketplaceItem = {
   id: string;
-  kind: "Product" | "Service";
+  kind: 'Product' | 'Service';
   title: string;
   description: string;
   price?: number;
@@ -138,30 +156,38 @@ function useImagePreview() {
 }
 
 /* ================================ Page ==================================== */
-export default function Home() {
-  // Current user (replace with Supabase auth later)
-  const currentUser = { id: "u_current", name: "You" };
+export default function Page() {
+  /* ----------------------- Current user (demo auth) ----------------------- */
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatarUrl?: string }>({
+    id: 'u_current',
+    name: 'You',
+    avatarUrl: undefined,
+  });
 
-  /* ------------ NAV / MAP ------------ */
-  const [tab, setTab] = useState<string>("home");
-  const [searchQuery, setSearchQuery] = useState("");
+  /* Seed your own user in usersById so tagging etc. works */
+  const [usersById, setUsersById] = useState<Record<string, UserMini>>({
+    u_current: { id: 'u_current', name: 'You' },
+  });
+
+  /* ---------------------------- Nav / Filters ---------------------------- */
+  const [tab, setTab] = useState<string>('home');
+  const [searchQuery, setSearchQuery] = useState('');
   const mapRef = useRef<LiveMapHandle>(null);
 
-  /* ------------ DRAWERS ------------ */
+  /* ----------------------------- Drawers -------------------------------- */
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerLoc, setDrawerLoc] = useState<LocationData | undefined>(undefined);
 
   const [userDrawerOpen, setUserDrawerOpen] = useState(false);
   const [drawerUser, setDrawerUser] = useState<UserMini | undefined>(undefined);
 
-  /* ------------ STARS ------------ */
+  /* ------------------------------- Stars -------------------------------- */
   const [userStars, setUserStars] = useState<Record<string, number>>({});
   const [locationStars, setLocationStars] = useState<Record<string, number>>({});
   const [postStars, setPostStars] = useState<Record<string, number>>({});
   const [eventStars, setEventStars] = useState<Record<string, number>>({});
   const [marketStars, setMarketStars] = useState<Record<string, number>>({});
   const [collabStars, setCollabStars] = useState<Record<string, number>>({});
-
   const inc = (setter: (f: (p: any) => any) => void, id: string) =>
     setter((prev: Record<string, number>) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
 
@@ -173,33 +199,36 @@ export default function Home() {
   const giveMarketStar = (id: string) => inc(setMarketStars, id);
   const giveCollabStar = (id: string) => inc(setCollabStars, id);
 
-  /* ------------ USERS / LOCATIONS / CONTENT (empty, ready for Supabase) --- */
-  const [usersById, setUsersById] = useState<Record<string, UserMini>>({});
+  /* --------------------- Entities (local demo state) --------------------- */
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [posts, setPosts] = useState<DemoPost[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [market, setMarket] = useState<MarketplaceItem[]>([]);
   const [collabs, setCollabs] = useState<CollabItem[]>([]);
-  const [marketFilter, setMarketFilter] = useState<"All" | "Product" | "Service">("All");
+  const [marketFilter, setMarketFilter] = useState<'All' | 'Product' | 'Service'>('All');
 
-  /* ------------ COMMENTS (all entities) ------------ */
+  /* --------------------------- Comments (all) ---------------------------- */
   const [comments, setComments] = useState<Record<string, any[]>>({});
   function addComment(key: string, c: any) {
     setComments((prev) => ({ ...prev, [key]: [c, ...(prev[key] ?? [])] }));
   }
+  function canEditComment(c: any) {
+    return c.authorId === currentUser.id;
+  }
+  function deleteComment(key: string, id: string) {
+    setComments((prev) => ({ ...prev, [key]: (prev[key] ?? []).filter((x: any) => x.id !== id) }));
+  }
 
-  /* --------------------- Comment modal (image + tags) ---------------------- */
+  /* --------------------- Comment modal (image + tags) -------------------- */
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentKey, setCommentKey] = useState<string | null>(null);
-  const [commentText, setCommentText] = useState("");
+  const [commentText, setCommentText] = useState('');
   const [commentTags, setCommentTags] = useState<string[]>([]);
   const { url: cImg, name: cImgName, onChange: cImgChange, clear: cImgClear } = useImagePreview();
-
   function openComment(forKey: string) {
     setCommentKey(forKey);
     setCommentOpen(true);
   }
-
   function submitComment() {
     if (!commentKey) return;
     const c = {
@@ -213,27 +242,23 @@ export default function Home() {
     };
     addComment(commentKey, c);
     setCommentOpen(false);
-    setCommentText("");
+    setCommentText('');
     setCommentTags([]);
     cImgClear();
   }
 
-  /* ------------ SELECTION ------------ */
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
-
-  /* ------------ FOLLOWING (persist) ------------ */
+  /* --------------------------- Following (demo) -------------------------- */
   const [followedUsers, setFollowedUsers] = useState<string[]>([]);
   const [followedLocations, setFollowedLocations] = useState<string[]>([]);
   useEffect(() => {
-    setFollowedUsers(JSON.parse(localStorage.getItem("ps_follow_users") || "[]"));
-    setFollowedLocations(JSON.parse(localStorage.getItem("ps_follow_locs") || "[]"));
+    setFollowedUsers(JSON.parse(localStorage.getItem('ps_follow_users') || '[]'));
+    setFollowedLocations(JSON.parse(localStorage.getItem('ps_follow_locs') || '[]'));
   }, []);
   useEffect(() => {
-    localStorage.setItem("ps_follow_users", JSON.stringify(followedUsers));
+    localStorage.setItem('ps_follow_users', JSON.stringify(followedUsers));
   }, [followedUsers]);
   useEffect(() => {
-    localStorage.setItem("ps_follow_locs", JSON.stringify(followedLocations));
+    localStorage.setItem('ps_follow_locs', JSON.stringify(followedLocations));
   }, [followedLocations]);
 
   const toggleFollowUser = (userId: string) =>
@@ -241,34 +266,36 @@ export default function Home() {
   const toggleFollowLocation = (locId: string) =>
     setFollowedLocations((prev) => (prev.includes(locId) ? prev.filter((id) => id !== locId) : [...prev, locId]));
 
-  /* ------------ TAB / FILTER HELPERS ------------ */
+  /* --------------------------- Tab / filtering --------------------------- */
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+
   function handleSelectTab(next: string) {
-  if (next === "profile") {
-    // Open your own profile drawer without changing the feed/tab
-    openUser(currentUser.id);
-    return;
+    if (next === 'profile') {
+      openUser(currentUser.id);
+      setProfileModalOpen(true); // open editor when user taps Profile
+      return;
+    }
+    setTab(next);
+    setSelectedUserId(null);
+    setSelectedLocationId(null);
   }
-  setTab(next);
-  setSelectedUserId(null);
-  setSelectedLocationId(null);
-}
 
-
-  function allowedTypesForTab(t: string): Array<LocationData["type"]> | null {
-    if (t === "hauntings") return ["HAUNTING"];
-    if (t === "ufos") return ["UFO"];
-    if (t === "cryptids") return ["CRYPTID"];
-    if (t === "events") return ["EVENT"];
+  function allowedTypesForTab(t: string): Array<LocationData['type']> | null {
+    if (t === 'hauntings') return ['HAUNTING'];
+    if (t === 'ufos') return ['UFO'];
+    if (t === 'cryptids') return ['CRYPTID'];
+    if (t === 'events') return ['EVENT'];
     return null;
   }
   const allowed = allowedTypesForTab(tab);
-  const matchesQuery = (s?: string) => !searchQuery || (s ?? "").toLowerCase().includes(searchQuery.toLowerCase());
+  const matchesQuery = (s?: string) => !searchQuery || (s ?? '').toLowerCase().includes(searchQuery.toLowerCase());
   const filteredLocations = useMemo(() => {
     const byTab = allowed ? locations.filter((l) => allowed.includes(l.type)) : locations;
     return byTab.filter((l) => matchesQuery(l.title) || matchesQuery(l.summary));
   }, [allowed, locations, searchQuery]);
 
-  /* ------------ OPENERS ------------ */
+  /* ------------------------------ Openers ------------------------------- */
   function openFromPin(loc: LocationData) {
     setDrawerLoc(loc);
     setDrawerOpen(true);
@@ -276,144 +303,88 @@ export default function Home() {
     setSelectedUserId(null);
   }
   function openUser(userId: string) {
-    const u = usersById[userId] ?? { id: userId, name: "User" };
+    const u = usersById[userId] ?? { id: userId, name: 'User' };
     setDrawerUser(u);
     setUserDrawerOpen(true);
     setSelectedUserId(userId);
     setSelectedLocationId(null);
-    setTab("home");
+    setTab('home');
   }
 
-  /* -------------------- ADD POST / LOCATION / EVENT / LISTING / COLLAB ---- */
-  const [postFormOpen, setPostFormOpen] = useState(false);
+  /* ------------------------------ Add POST ------------------------------- */
   const { url: postImg, name: postImgName, onChange: postImgChange, clear: postImgClear } = useImagePreview();
+  const [postFormOpen, setPostFormOpen] = useState(false);
   const [postTagUsers, setPostTagUsers] = useState<string[]>([]);
-  const [postTagLocs, setPostTagLocs] = useState<string[]>([]);
+  const [selectedLocId, setSelectedLocId] = useState<string>('');
+  const [locQuery, setLocQuery] = useState('');
 
-  function AddPostForm({ onSubmit, onClose }: { onSubmit: (p: DemoPost) => void; onClose: () => void }) {
-    const locationOptions = allowed ? locations.filter((l) => allowed!.includes(l.type)) : locations;
-    function toggle(arr: string[], id: string, setter: (v: string[]) => void) {
-      setter(arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
-    }
-    function handle(e: FormEvent<HTMLFormElement>) {
-      e.preventDefault();
-      const fd = new FormData(e.currentTarget);
-      const locId = String(fd.get("locationId") || "");
-      const typeFromLoc =
-        locId && locations.find((l) => l.id === locId)?.type === "UFO"
-          ? "Post • UFO"
-          : locId && locations.find((l) => l.id === locId)?.type === "CRYPTID"
-          ? "Post • Cryptid"
-          : locId && locations.find((l) => l.id === locId)?.type === "EVENT"
-          ? "Friend • Post"
-          : "Post • Haunting";
-      const p: DemoPost = {
-        id: crypto.randomUUID(),
-        type: typeFromLoc,
-        title: String(fd.get("title") || "").trim(),
-        desc: String(fd.get("desc") || "").trim(),
-        locationId: locId || undefined,
-        imageUrl: postImg,
-        linkUrl: String(fd.get("link") || "").trim() || undefined,
-        authorId: currentUser.id,
-        authorName: currentUser.name,
-        tagUserIds: postTagUsers,
-        tagLocationIds: postTagLocs,
-        createdAt: Date.now(),
-      };
-      onSubmit(p);
-      onClose();
-      postImgClear();
-      setPostTagUsers([]);
-      setPostTagLocs([]);
-    }
-    return (
-      <form onSubmit={handle} className="space-y-3">
-        <h3 className="text-lg font-semibold">Add Post</h3>
-        <input name="title" placeholder="Title" required className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <textarea name="desc" placeholder="What happened? Evidence? Notes…" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <label className="text-sm text-neutral-300">Location (optional)</label>
-        <select name="locationId" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
-          <option value="">— none —</option>
-          {locationOptions.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.title}
-            </option>
-          ))}
-        </select>
+  const locationOptions = useMemo(() => {
+    const base = allowed ? locations.filter((l) => allowed!.includes(l.type)) : locations;
+    const q = locQuery.trim().toLowerCase();
+    return q ? base.filter((l) => l.title.toLowerCase().includes(q)).slice(0, 20) : base.slice(0, 12);
+  }, [allowed, locations, locQuery]);
 
-        {/* Tag friends */}
-        <div>
-          <div className="text-sm text-neutral-300 mb-1">Tag friends</div>
-          <div className="flex flex-wrap gap-2">
-            {Object.values(usersById).length === 0 && <span className="text-xs text-neutral-600">No users yet.</span>}
-            {Object.values(usersById).map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => toggle(postTagUsers, u.id, setPostTagUsers)}
-                className={`rounded-full border px-3 py-1 text-sm ${
-                  postTagUsers.includes(u.id) ? "border-cyan-500 bg-cyan-500/10 text-cyan-300" : "border-neutral-700 text-neutral-300"
-                }`}
-              >
-                {u.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Tag locations */}
-        <div>
-          <div className="text-sm text-neutral-300 mb-1">Tag locations</div>
-          <div className="flex flex-wrap gap-2">
-            {locations.map((l) => (
-              <button
-                key={l.id}
-                type="button"
-                onClick={() => toggle(postTagLocs, l.id, setPostTagLocs)}
-                className={`rounded-full border px-3 py-1 text-sm ${
-                  postTagLocs.includes(l.id) ? "border-cyan-500 bg-cyan-500/10 text-cyan-300" : "border-neutral-700 text-neutral-300"
-                }`}
-              >
-                {l.title}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Photo (universal) */}
-        <div>
-          <div className="text-sm text-neutral-300 mb-1">Photo (optional)</div>
-          <input type="file" accept="image/*" onChange={postImgChange} className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 w-full" />
-          {postImg && (
-            <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={postImg} alt="preview" className="max-h-64 w-auto rounded-md border border-neutral-800" />
-              <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-                <span className="truncate">{postImgName}</span>
-                <button type="button" onClick={postImgClear} className="text-neutral-300 hover:underline">
-                  Remove
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* External link only for videos/sites (no image URLs) */}
-        <input name="link" placeholder="External link (YouTube, site, social — optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-
-        <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className="rounded-md border border-neutral-700 px-3 py-1.5">
-            Cancel
-          </button>
-          <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">
-            Post
-          </button>
-        </div>
-      </form>
-    );
+  function toggle(arr: string[], id: string, setter: (v: string[]) => void) {
+    setter(arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
   }
 
+  function handleAddPost(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!selectedLocId) return;
+
+    const fd = new FormData(e.currentTarget);
+    const title = String(fd.get('title') || '').trim();
+    const desc = String(fd.get('desc') || '').trim();
+    const link = String(fd.get('link') || '').trim() || undefined;
+
+    const loc = locations.find((l) => l.id === selectedLocId);
+    const typeFromLoc =
+      loc?.type === 'UFO'
+        ? 'Post • UFO'
+        : loc?.type === 'CRYPTID'
+        ? 'Post • Cryptid'
+        : loc?.type === 'EVENT'
+        ? 'Friend • Post'
+        : 'Post • Haunting';
+
+    const p: DemoPost = {
+      id: crypto.randomUUID(),
+      type: typeFromLoc,
+      title,
+      desc,
+      locationId: selectedLocId,
+      imageUrl: postImg,
+      linkUrl: link,
+      authorId: currentUser.id,
+      authorName: currentUser.name,
+      tagUserIds: postTagUsers,
+      createdAt: Date.now(),
+    };
+    setPosts((prev) => [p, ...prev]);
+    // reset
+    postImgClear();
+    setPostTagUsers([]);
+    setSelectedLocId('');
+    setLocQuery('');
+    setPostFormOpen(false);
+  }
+
+  function canEditPost(p: DemoPost) {
+    return p.authorId === currentUser.id;
+  }
+  function editPost(id: string, patch: Partial<DemoPost>) {
+    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  }
+  function deletePost(id: string) {
+    setPosts((prev) => prev.filter((p) => p.id !== id));
+    setComments((prev) => {
+      const c = { ...prev };
+      delete c[`post:${id}`];
+      return c;
+    });
+  }
+
+  /* --------------------------- Add LOCATION ------------------------------ */
   const [locFormOpen, setLocFormOpen] = useState(false);
   const [newLoc, setNewLoc] = useState<{ lng: number; lat: number } | null>(null);
   const { url: locImg, name: locImgName, onChange: locImgChange, clear: locImgClear } = useImagePreview();
@@ -424,301 +395,130 @@ export default function Home() {
     setLocFormOpen(true);
   }
 
-  function AddLocationForm({ onSubmit, onClose }: { onSubmit: (l: LocationData) => void; onClose: () => void }) {
-    const [lng, setLng] = useState(newLoc?.lng ?? -2.5);
-    const [lat, setLat] = useState(newLoc?.lat ?? 54.3);
-    function useMyLocation() {
-      if (!navigator.geolocation) return;
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setLng(pos.coords.longitude);
-          setLat(pos.coords.latitude);
-        },
-        () => {},
-        { enableHighAccuracy: true, timeout: 7000 }
-      );
-    }
-    function handle(e: FormEvent<HTMLFormElement>) {
-      e.preventDefault();
-      const fd = new FormData(e.currentTarget);
-      const type = String(fd.get("type")) as LocationData["type"];
-      const l: LocationData = {
-        id: crypto.randomUUID(),
-        title: String(fd.get("title") || "").trim(),
-        type,
-        lat: Number(lat),
-        lng: Number(lng),
-        summary: String(fd.get("summary") || "").trim() || undefined,
-        address: String(fd.get("address") || "").trim() || undefined,
-        priceInfo: String(fd.get("priceInfo") || "").trim() || undefined,
-        website: String(fd.get("website") || "").trim() || undefined,
-        imageUrl: locImg,
-      };
-      onSubmit(l);
-      onClose();
-      locImgClear();
-    }
-    return (
-      <form onSubmit={handle} className="space-y-3">
-        <h3 className="text-lg font-semibold">Add Location</h3>
-        <input name="title" placeholder="Location title" required className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <select name="type" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
-          <option value="HAUNTING">Haunting</option>
-          <option value="UFO">UFO</option>
-          <option value="CRYPTID">Cryptid</option>
-          <option value="EVENT">Event</option>
-        </select>
-        <textarea name="summary" placeholder="Short summary (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <input name="address" placeholder="Address (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <input name="priceInfo" placeholder="Prices (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <input name="website" placeholder="Website (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-
-        {/* Photo for location */}
-        <div>
-          <div className="text-sm text-neutral-300 mb-1">Main photo (optional)</div>
-          <input type="file" accept="image/*" onChange={locImgChange} className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 w-full" />
-          {locImg && (
-            <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={locImg} alt="preview" className="max-h-64 w-auto rounded-md border border-neutral-800" />
-              <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-                <span className="truncate">{locImgName}</span>
-                <button type="button" onClick={locImgClear} className="text-neutral-300 hover:underline">Remove</button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <input value={lng} onChange={(e) => setLng(Number(e.target.value))} placeholder="Lng" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <input value={lat} onChange={(e) => setLat(Number(e.target.value))} placeholder="Lat" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              const c = mapRef.current?.getCenter();
-              if (c) { setLng(c[0]); setLat(c[1]); }
-            }}
-            className="rounded-md border border-neutral-700 px-3 py-1.5"
-          >
-            Use map center
-          </button>
-          <button type="button" onClick={useMyLocation} className="rounded-md border border-neutral-700 px-3 py-1.5">Use my location</button>
-        </div>
-
-        <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className="rounded-md border border-neutral-700 px-3 py-1.5">Cancel</button>
-          <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">Save</button>
-        </div>
-      </form>
-    );
+  function handleAddLocation(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    const type = String(fd.get('type')) as LocationData['type'];
+    const l: LocationData = {
+      id: crypto.randomUUID(),
+      title: String(fd.get('title') || '').trim(),
+      type,
+      lat: Number(fd.get('lat') || newLoc?.lat || 54.3),
+      lng: Number(fd.get('lng') || newLoc?.lng || -2.5),
+      summary: String(fd.get('summary') || '').trim() || undefined,
+      address: String(fd.get('address') || '').trim() || undefined,
+      priceInfo: String(fd.get('priceInfo') || '').trim() || undefined,
+      website: String(fd.get('website') || '').trim() || undefined,
+      imageUrl: locImg,
+    };
+    setLocations((prev) => [l, ...prev]);
+    setLocFormOpen(false);
+    locImgClear();
   }
 
+  /* ------------------ Events / Marketplace / Collab forms ----------------- */
   const [eventFormOpen, setEventFormOpen] = useState(false);
   const { url: evImg, name: evImgName, onChange: evImgChange, clear: evImgClear } = useImagePreview();
-
-  function AddEventForm({ onSubmit, onClose }: { onSubmit: (e: EventItem) => void; onClose: () => void }) {
-    function handle(e: FormEvent<HTMLFormElement>) {
-      e.preventDefault();
-      const fd = new FormData(e.currentTarget);
-      onSubmit({
+  function handleAddEvent(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setEvents((prev) => [
+      ...prev,
+      {
         id: crypto.randomUUID(),
-        title: String(fd.get("title") || "").trim(),
-        description: String(fd.get("desc") || "").trim() || undefined,
-        locationText: String(fd.get("where") || "").trim() || undefined,
-        startISO: String(fd.get("start") || ""),
-        endISO: String(fd.get("end") || "") || undefined,
-        priceText: String(fd.get("price") || "").trim() || undefined,
-        link: String(fd.get("link") || "").trim() || undefined,
+        title: String(fd.get('title') || '').trim(),
+        description: String(fd.get('desc') || '').trim() || undefined,
+        locationText: String(fd.get('where') || '').trim() || undefined,
+        startISO: String(fd.get('start') || ''),
+        endISO: String(fd.get('end') || '') || undefined,
+        priceText: String(fd.get('price') || '').trim() || undefined,
+        link: String(fd.get('link') || '').trim() || undefined,
         imageUrl: evImg,
         createdAt: Date.now(),
         postedBy: { id: currentUser.id, name: currentUser.name },
-      });
-      onClose();
-      evImgClear();
-    }
-    return (
-      <form onSubmit={handle} className="space-y-3">
-        <h3 className="text-lg font-semibold">Add Event</h3>
-        <input name="title" placeholder="Title" required className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <textarea name="desc" placeholder="Description (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <input name="where" placeholder="Location (text)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <div className="text-xs text-neutral-400 mb-1">From</div>
-            <input type="datetime-local" name="start" required className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 w-full" />
-          </div>
-          <div>
-            <div className="text-xs text-neutral-400 mb-1">To</div>
-            <input type="datetime-local" name="end" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 w-full" />
-          </div>
-        </div>
-
-        {/* Photo */}
-        <div>
-          <div className="text-sm text-neutral-300 mb-1">Event photo (optional)</div>
-          <input type="file" accept="image/*" onChange={evImgChange} className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 w-full" />
-          {evImg && (
-            <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={evImg} alt="" className="mt-2 rounded-md border border-neutral-800" />
-              <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-                <span className="truncate">{evImgName}</span>
-                <button type="button" onClick={evImgClear} className="text-neutral-300 hover:underline">Remove</button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <input name="price" placeholder="Price (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <input name="link" placeholder="Ticket / Info link (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-md border border-neutral-700 px-3 py-1.5">Cancel</button>
-          <button type="submit" className="rounded-md border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-purple-200 hover:bg-purple-500/20">Save</button>
-        </div>
-      </form>
-    );
+      },
+    ]);
+    setEventFormOpen(false);
+    evImgClear();
   }
 
   const [listingFormOpen, setListingFormOpen] = useState(false);
   const { url: mkImg, name: mkImgName, onChange: mkImgChange, clear: mkImgClear } = useImagePreview();
-
-  function AddListingForm({ onSubmit, onClose }: { onSubmit: (m: MarketplaceItem) => void; onClose: () => void }) {
-    function handle(e: FormEvent<HTMLFormElement>) {
-      e.preventDefault();
-      const fd = new FormData(e.currentTarget);
-      onSubmit({
+  function handleAddListing(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setMarket((prev) => [
+      {
         id: crypto.randomUUID(),
-        kind: (String(fd.get("kind")) as "Product" | "Service") || "Product",
-        title: String(fd.get("title") || "").trim(),
-        description: String(fd.get("desc") || "").trim(),
-        price: Number(String(fd.get("price") || "").trim()) || undefined,
-        locationText: String(fd.get("where") || "").trim() || undefined,
+        kind: (String(fd.get('kind')) as 'Product' | 'Service') || 'Product',
+        title: String(fd.get('title') || '').trim(),
+        description: String(fd.get('desc') || '').trim(),
+        price: Number(String(fd.get('price') || '').trim()) || undefined,
+        locationText: String(fd.get('where') || '').trim() || undefined,
         imageUrl: mkImg,
-        contactOrLink: String(fd.get("contact") || "").trim() || undefined,
+        contactOrLink: String(fd.get('contact') || '').trim() || undefined,
         createdAt: Date.now(),
         postedBy: { id: currentUser.id, name: currentUser.name },
-      });
-      onClose();
-      mkImgClear();
-    }
-    return (
-      <form onSubmit={handle} className="space-y-3">
-        <h3 className="text-lg font-semibold">Add Listing</h3>
-        <select name="kind" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
-          <option>Product</option>
-          <option>Service</option>
-        </select>
-        <input name="title" placeholder="Title" required className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <textarea name="desc" placeholder="Description" required className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <div className="grid grid-cols-2 gap-2">
-          <input name="price" placeholder="Price (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <input name="where" placeholder="Location (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        </div>
-
-        {/* Photo */}
-        <div>
-          <div className="text-sm text-neutral-300 mb-1">Photos (optional)</div>
-          <input type="file" accept="image/*" onChange={mkImgChange} className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 w-full" />
-          {mkImg && (
-            <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={mkImg} className="mt-2 rounded-md border border-neutral-800" alt="" />
-              <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-                <span className="truncate">{mkImgName}</span>
-                <button type="button" onClick={mkImgClear} className="text-neutral-300 hover:underline">Remove</button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <input name="contact" placeholder="Contact or link" required className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-md border border-neutral-700 px-3 py-1.5">Cancel</button>
-          <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">Save</button>
-        </div>
-      </form>
-    );
+      },
+      ...prev,
+    ]);
+    setListingFormOpen(false);
+    mkImgClear();
   }
 
   const [collabFormOpen, setCollabFormOpen] = useState(false);
   const { url: cbImg, name: cbImgName, onChange: cbImgChange, clear: cbImgClear } = useImagePreview();
-
-  function AddCollabForm({ onSubmit, onClose }: { onSubmit: (c: CollabItem) => void; onClose: () => void }) {
-    function handle(e: FormEvent<HTMLFormElement>) {
-      e.preventDefault();
-      const fd = new FormData(e.currentTarget);
-      onSubmit({
+  function handleAddCollab(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setCollabs((prev) => [
+      {
         id: crypto.randomUUID(),
-        title: String(fd.get("title") || "").trim(),
-        description: String(fd.get("desc") || "").trim() || undefined,
-        dateISO: String(fd.get("date") || "") || undefined,
-        locationText: String(fd.get("where") || "").trim() || undefined,
-        priceText: String(fd.get("price") || "").trim() || undefined,
-        contact: String(fd.get("contact") || "").trim() || undefined,
+        title: String(fd.get('title') || '').trim(),
+        description: String(fd.get('desc') || '').trim() || undefined,
+        dateISO: String(fd.get('date') || '') || undefined,
+        locationText: String(fd.get('where') || '').trim() || undefined,
+        priceText: String(fd.get('price') || '').trim() || undefined,
+        contact: String(fd.get('contact') || '').trim() || undefined,
         imageUrl: cbImg,
         createdAt: Date.now(),
         postedBy: { id: currentUser.id, name: currentUser.name },
-      });
-      onClose();
-      cbImgClear();
-    }
-    return (
-      <form onSubmit={handle} className="space-y-3">
-        <h3 className="text-lg font-semibold">Add Collaboration</h3>
-        <input name="title" placeholder="Title" required className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <textarea name="desc" placeholder="Details (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <input type="datetime-local" name="date" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <input name="where" placeholder="Location (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <input name="price" placeholder="Price (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-        <input name="contact" placeholder="Contact or link" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-
-        {/* Photo */}
-        <div>
-          <div className="text-sm text-neutral-300 mb-1">Photo (optional)</div>
-          <input type="file" accept="image/*" onChange={cbImgChange} className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 w-full" />
-          {cbImg && (
-            <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={cbImg} alt="" className="mt-2 rounded-md border border-neutral-800" />
-              <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-                <span className="truncate">{cbImgName}</span>
-                <button type="button" onClick={cbImgClear} className="text-neutral-300 hover:underline">Remove</button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="rounded-md border border-neutral-700 px-3 py-1.5">Cancel</button>
-          <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">Save</button>
-        </div>
-      </form>
-    );
+      },
+      ...prev,
+    ]);
+    setCollabFormOpen(false);
+    cbImgClear();
   }
 
-  /* ---------------------------- RENDER START ------------------------------- */
+  /* --------------------------- Profile picture ---------------------------- */
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const { url: avatarPreview, name: avatarName, onChange: avatarChange, clear: avatarClear } = useImagePreview();
+  function saveAvatar() {
+    if (!avatarPreview) {
+      setProfileModalOpen(false);
+      return;
+    }
+    setCurrentUser((u) => ({ ...u, avatarUrl: avatarPreview }));
+    setUsersById((prev) => ({ ...prev, [currentUser.id]: { id: currentUser.id, name: currentUser.name, avatarUrl: avatarPreview } as any }));
+    setProfileModalOpen(false);
+    // don’t revoke object URL so it keeps rendering; would be replaced later by uploaded path
+  }
+
+  /* ---------------------------- RENDER START ------------------------------ */
   return (
-    <main className="min-h-screen bg-[#0B0C0E] text-white flex flex-col">
-      {/* APP HEADER: logo holder + FilterBar in the SAME row */}
+    <main className="flex min-h-screen flex-col bg-[#0B0C0E] text-white">
+      {/* HEADER: logo + FilterBar in the same row */}
       <header className="sticky top-0 z-40 border-b border-neutral-800/60 bg-[#0B0C0E]/80 backdrop-blur">
         <div className="mx-auto max-w-6xl px-4 py-2">
           <div className="flex items-center gap-3">
-          {/* Logo */}
-<div className="flex h-15 w-15 items-center justify-center rounded-full bg-transparent">
-  {/* eslint-disable-next-line @next/next/no-img-element */}
-  <img
-    src="/logo-cyan.png"
-    alt="ParaSphere Logo"
-    className="h-15 w-15 object-contain"
-  />
-</div>
+            {/* Logo */}
+            <div className="h-10 w-10 shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo-cyan.png" alt="ParaSphere Logo" className="h-10 w-10 object-contain" />
+            </div>
 
-
-            {/* FilterBar: renders search + pills across full remaining width */}
-            <div className="flex-1 min-w-0">
+            {/* FilterBar spans remaining width */}
+            <div className="min-w-0 flex-1">
               <FilterBar
                 query={searchQuery}
                 setQuery={setSearchQuery}
@@ -730,91 +530,93 @@ export default function Home() {
         </div>
       </header>
 
-      {/* MAP AREA — reduced height so more posts are visible; page scrolls naturally */}
+      {/* MAP AREA (drawers centered inside) */}
       <section className="relative mx-auto w-full max-w-6xl px-4 pb-3 pt-3">
         <div className="relative">
-        <LiveMap
-  ref={mapRef}
-  initialCenter={[-2.5, 54.3]}
-  overviewZoom={5.8}
-  heightVh={{ desktop: 38, mobile: 32 }}
-  locations={filteredLocations}
-  onOpen={openFromPin}
-/>
-
+          <LiveMap
+            ref={mapRef}
+            initialCenter={[-2.5, 54.3]}
+            overviewZoom={5.8}
+            heightVh={{ desktop: 38, mobile: 32 }}
+            locations={filteredLocations}
+            onOpen={openFromPin}
+          />
 
           <MapActions onAddLocation={openAddLocation} />
 
-{/* Drawer overlay centered INSIDE the map area */}
-<div className="pointer-events-none absolute inset-0 z-50 flex items-start justify-center p-3 md:p-4">
-  {/* This wrapper limits the drawer width so it never exceeds the map */}
-  <div className="pointer-events-auto w-full max-w-xl">
-   <LocationDrawer
-  variant="center"
-  open={drawerOpen}
-  location={drawerLoc}
-  onGiveLocationStar={giveLocationStar}
-  onClickLocationTitle={() => drawerLoc && setSelectedLocationId(drawerLoc.id)}
-  onFollowLocation={(locId) => toggleFollowLocation(locId)}
-  isFollowed={drawerLoc ? followedLocations.includes(drawerLoc.id) : false}
-  onClose={() => setDrawerOpen(false)}
-/>
+          {/* Drawer overlay centered INSIDE the map area */}
+          <div className="pointer-events-none absolute inset-0 z-50 flex items-start justify-center p-3 md:p-4">
+            <div className="pointer-events-auto w-full max-w-xl">
+              <LocationDrawer
+                variant="center"
+                open={drawerOpen}
+                location={drawerLoc}
+                onGiveLocationStar={giveLocationStar}
+                onClickLocationTitle={() => drawerLoc && setSelectedLocationId(drawerLoc.id)}
+                onFollowLocation={(locId) => toggleFollowLocation(locId)}
+                isFollowed={drawerLoc ? followedLocations.includes(drawerLoc.id) : false}
+                onClose={() => setDrawerOpen(false)}
+              />
 
-    <UserDrawer
-      open={userDrawerOpen}
-      user={drawerUser}
-      stars={drawerUser ? userStars[drawerUser.id] ?? 0 : 0}
-      onGiveStar={(uid) => giveUserStar(uid)}
-      onFollow={(uid) => toggleFollowUser(uid)}
-      onMessage={(uid) => alert(`(message) ${uid}`)}
-      onBlock={(uid) => alert(`(block) ${uid}`)}
-      onReport={(uid) => alert(`(report) ${uid}`)}
-      onClose={() => setUserDrawerOpen(false)}
-    />
-  </div>
-</div>
-
-
+              <UserDrawer
+                open={userDrawerOpen}
+                user={drawerUser}
+                stars={drawerUser ? userStars[drawerUser.id] ?? 0 : 0}
+                onGiveStar={(uid) => giveUserStar(uid)}
+                onFollow={(uid) => toggleFollowUser(uid)}
+                onMessage={(uid) => alert(`(message) ${uid}`)}
+                onBlock={(uid) => alert(`(block) ${uid}`)}
+                onReport={(uid) => alert(`(report) ${uid}`)}
+                onEditProfile={() => setProfileModalOpen(true)}
+                onClose={() => setUserDrawerOpen(false)}
+              />
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* SCROLLABLE CONTENT / FEEDS — uses the page’s single scroll (no nested overflow) */}
+      {/* FEEDS */}
       <section>
         <div className="mx-auto max-w-6xl px-4 py-6">
-          {/* HEADER */}
+          {/* PAGE TITLE */}
           <div className="mb-4">
             <h1 className="text-2xl font-semibold">
               {selectedLocationId
-                ? locations.find((l) => l.id === selectedLocationId)?.title ?? "Location"
+                ? locations.find((l) => l.id === selectedLocationId)?.title ?? 'Location'
                 : selectedUserId
-                ? `${usersById[selectedUserId]?.name ?? "User"} — posts`
-                : tab === "home"
-                ? "HOME"
-                : tab === "hauntings"
-                ? "Hauntings — newest first"
-                : tab === "ufos"
-                ? "UFOs — newest first"
-                : tab === "cryptids"
-                ? "Cryptids — newest first"
-                : tab === "events"
-                ? "Events — upcoming first"
-                : tab === "marketplace"
-                ? "Marketplace — newest first"
-                : tab === "collaboration"
-                ? "Collaboration — latest"
-                : "Feed"}
+                ? `${usersById[selectedUserId]?.name ?? 'User'} — posts`
+                : tab === 'home'
+                ? 'HOME'
+                : tab === 'hauntings'
+                ? 'Hauntings — newest first'
+                : tab === 'ufos'
+                ? 'UFOs — newest first'
+                : tab === 'cryptids'
+                ? 'Cryptids — newest first'
+                : tab === 'events'
+                ? 'Events — upcoming first'
+                : tab === 'marketplace'
+                ? 'Marketplace — newest first'
+                : tab === 'collaboration'
+                ? 'Collaboration — latest'
+                : 'Feed'}
             </h1>
-            {!selectedLocationId && !selectedUserId && tab === "home" && (
-              <div className="mt-1 text-sm text-yellow-200">Now showing posts from your followed locations and friends.</div>
+
+            {!selectedLocationId && !selectedUserId && tab === 'home' && (
+              <div className="mt-1 text-sm text-yellow-200">
+                Now showing posts from your followed locations and friends.
+              </div>
             )}
 
-            {/* Follow filters (HOME) */}
-            {tab === "home" && (
+            {/* Follow filters on HOME */}
+            {tab === 'home' && (
               <div className="mt-3 grid gap-3">
                 <div>
                   <div className="mb-1 text-xs text-neutral-400">Followed users</div>
                   <div className="flex flex-wrap gap-2">
-                    {followedUsers.length === 0 && <span className="text-xs text-neutral-500">You’re not following any users yet.</span>}
+                    {followedUsers.length === 0 && (
+                      <span className="text-xs text-neutral-500">You’re not following any users yet.</span>
+                    )}
                     {followedUsers.map((uid) => (
                       <Chip
                         key={uid}
@@ -832,7 +634,9 @@ export default function Home() {
                 <div>
                   <div className="mb-1 text-xs text-neutral-400">Followed locations</div>
                   <div className="flex flex-wrap gap-2">
-                    {followedLocations.length === 0 && <span className="text-xs text-neutral-500">You’re not following any locations yet.</span>}
+                    {followedLocations.length === 0 && (
+                      <span className="text-xs text-neutral-500">You’re not following any locations yet.</span>
+                    )}
                     {followedLocations.map((lid) => (
                       <Chip
                         key={lid}
@@ -850,8 +654,8 @@ export default function Home() {
               </div>
             )}
 
-            {/* Add Post on feed tabs */}
-            {["home", "hauntings", "ufos", "cryptids"].includes(tab) && (
+            {/* Add Post button on feed tabs */}
+            {['home', 'hauntings', 'ufos', 'cryptids'].includes(tab) && (
               <div className="mt-3">
                 <button
                   onClick={() => setPostFormOpen(true)}
@@ -863,8 +667,8 @@ export default function Home() {
             )}
           </div>
 
-          {/* --------------------------- FEEDS --------------------------- */}
-          {["home", "hauntings", "ufos", "cryptids"].includes(tab) && (
+          {/* POSTS */}
+          {['home', 'hauntings', 'ufos', 'cryptids'].includes(tab) && (
             <div className="grid gap-4">
               {posts
                 .filter(
@@ -873,45 +677,49 @@ export default function Home() {
                     (!selectedLocationId || p.locationId === selectedLocationId) &&
                     (!searchQuery ||
                       p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      p.desc.toLowerCase().includes(searchQuery.toLowerCase()))
+                      p.desc.toLowerCase().includes(searchQuery.toLowerCase())),
                 )
                 .sort((a, b) => b.createdAt - a.createdAt)
                 .map((p) => {
                   const cKey = `post:${p.id}`;
                   return (
-                    <article key={p.id} className="rounded-xl bg-neutral-900 border border-neutral-800 p-4">
+                    <article key={p.id} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
                       <div className="flex items-center justify-between">
-                        <div className="text-neutral-400 text-xs">
-                          {p.type} • by{" "}
+                        <div className="text-xs text-neutral-400">
+                          {p.type} • by{' '}
                           <button className="text-cyan-300 hover:underline" onClick={() => openUser(p.authorId)}>
                             {usersById[p.authorId]?.name ?? p.authorName}
                           </button>
                         </div>
                         <StarBadge value={postStars[p.id] ?? 0} onClick={() => givePostStar(p.id)} />
                       </div>
-                      <h3 className="text-lg font-semibold mt-1">{p.title}</h3>
-                      <p className="text-neutral-300 text-sm">{p.desc}</p>
 
-                      {p.tagUserIds?.length ? (
-                        <div className="mt-2 text-xs text-neutral-400">
-                          Tagged:&nbsp;
-                          {p.tagUserIds.map((uid) => (
-                            <span key={uid} className="mr-2 text-cyan-300">
-                              {usersById[uid]?.name ?? uid}
-                            </span>
-                          ))}
+                      {/* Author controls */}
+                      {canEditPost(p) && (
+                        <div className="mt-2 flex items-center gap-2 text-xs">
+                          <button
+                            className="rounded-md border border-neutral-700 px-2 py-1 hover:bg-neutral-900"
+                            onClick={() => {
+                              const title = prompt('Edit title', p.title) ?? p.title;
+                              const desc = prompt('Edit description', p.desc) ?? p.desc;
+                              editPost(p.id, { title, desc });
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="rounded-md border border-red-500/70 px-2 py-1 text-red-300 hover:bg-red-500/10"
+                            onClick={() => {
+                              if (confirm('Delete this post?')) deletePost(p.id);
+                            }}
+                          >
+                            Delete
+                          </button>
                         </div>
-                      ) : null}
-                      {p.tagLocationIds?.length ? (
-                        <div className="mt-1 text-xs text-neutral-400">
-                          At:&nbsp;
-                          {p.tagLocationIds.map((lid) => (
-                            <span key={lid} className="mr-2 text-cyan-300">
-                              {locations.find((l) => l.id === lid)?.title ?? lid}
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
+                      )}
+
+                      <h3 className="mt-1 text-lg font-semibold">{p.title}</h3>
+                      <p className="text-sm text-neutral-300">{p.desc}</p>
 
                       {p.imageUrl && (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -930,7 +738,7 @@ export default function Home() {
                             onClick={() => {
                               setSelectedLocationId(p.locationId!);
                               setSelectedUserId(null);
-                              setTab("home");
+                              setTab('home');
                             }}
                           >
                             {locations.find((l) => l.id === p.locationId)?.title ?? p.locationId}
@@ -940,25 +748,33 @@ export default function Home() {
 
                       {/* Comments */}
                       <div className="mt-3 flex items-center gap-3">
-                        <button
-                          className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900"
-                          onClick={() => openComment(cKey)}
-                        >
+                        <button className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900" onClick={() => openComment(cKey)}>
                           Comment
                         </button>
                         <div className="text-xs text-neutral-500">{(comments[cKey]?.length ?? 0)} comments</div>
                       </div>
+
                       {comments[cKey]?.length ? (
                         <div className="mt-2 grid gap-2">
                           {comments[cKey].map((c) => (
                             <div key={c.id} className="rounded-md border border-neutral-800 bg-neutral-950 p-2">
-                              <div className="text-xs text-neutral-400">
-                                by <span className="text-cyan-300">{c.authorName}</span> • {new Date(c.createdAt).toLocaleString()}
+                              <div className="flex items-center justify-between text-xs text-neutral-400">
+                                <div>
+                                  by <span className="text-cyan-300">{c.authorName}</span> • {new Date(c.createdAt).toLocaleString()}
+                                </div>
+                                {canEditComment(c) && (
+                                  <button
+                                    className="rounded border border-neutral-700 px-2 py-0.5 hover:bg-neutral-900"
+                                    onClick={() => deleteComment(cKey, c.id)}
+                                  >
+                                    Delete
+                                  </button>
+                                )}
                               </div>
-                              <div className="text-sm text-neutral-200">{c.text}</div>
+                              <div className="mt-1 text-sm text-neutral-200">{c.text}</div>
                               {c.imageUrl && (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={c.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800 max-h-60 w-auto" />
+                                <img src={c.imageUrl} alt="" className="mt-2 max-h-60 w-auto rounded-md border border-neutral-800" />
                               )}
                             </div>
                           ))}
@@ -968,17 +784,18 @@ export default function Home() {
                   );
                 })}
               {posts.length === 0 && (
-                <div className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 text-neutral-400 text-sm">No posts yet.</div>
+                <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">No posts yet.</div>
               )}
             </div>
           )}
 
-          {/* --------------------------- EVENTS --------------------------- */}
-          {tab === "events" && (
+          {/* EVENTS */}
+          {tab === 'events' && (
             <>
               <SectionDisclaimer>
                 Parasphere does not organise, endorse, or guarantee any events listed here. Users should verify details, reputation, and any warranties independently.
               </SectionDisclaimer>
+
               <div className="mb-3">
                 <button
                   onClick={() => setEventFormOpen(true)}
@@ -994,7 +811,7 @@ export default function Home() {
                   .map((ev) => {
                     const cKey = `event:${ev.id}`;
                     return (
-                      <article key={ev.id} className="rounded-xl bg-neutral-900 border border-neutral-800 p-4">
+                      <article key={ev.id} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
                         <div className="flex items-center justify-between">
                           <div className="text-xs text-neutral-400">by {ev.postedBy.name}</div>
                           <StarBadge value={eventStars[ev.id] ?? 0} onClick={() => giveEventStar(ev.id)} />
@@ -1004,9 +821,9 @@ export default function Home() {
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={ev.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800" />
                         )}
-                        {ev.description && <p className="text-sm text-neutral-300 mt-1">{ev.description}</p>}
+                        {ev.description && <p className="mt-1 text-sm text-neutral-300">{ev.description}</p>}
                         <div className="mt-2 text-xs text-neutral-400">
-                          🗓 {new Date(ev.startISO).toLocaleString()} {ev.endISO ? `— ${new Date(ev.endISO).toLocaleString()}` : ""}
+                          🗓 {new Date(ev.startISO).toLocaleString()} {ev.endISO ? `— ${new Date(ev.endISO).toLocaleString()}` : ''}
                         </div>
                         {ev.locationText && <div className="text-xs text-neutral-400">📍 {ev.locationText}</div>}
                         {ev.priceText && <div className="text-xs text-neutral-400">💷 {ev.priceText}</div>}
@@ -1026,22 +843,29 @@ export default function Home() {
                     );
                   })}
                 {events.length === 0 && (
-                  <div className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 text-neutral-400 text-sm">No events yet.</div>
+                  <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">No events yet.</div>
                 )}
               </div>
             </>
           )}
 
-          {/* ------------------------- MARKETPLACE ------------------------ */}
-          {tab === "marketplace" && (
+          {/* MARKETPLACE */}
+          {tab === 'marketplace' && (
             <>
               <SectionDisclaimer>
                 Marketplace listings are user-posted advertisements. Parasphere isn’t a party to any transaction and accepts no liability. Do your own checks, warranties, and payments externally.
               </SectionDisclaimer>
+
               <div className="mb-3 flex items-center gap-2">
-                <Chip active={marketFilter === "All"} onClick={() => setMarketFilter("All")}>All</Chip>
-                <Chip active={marketFilter === "Product"} onClick={() => setMarketFilter("Product")}>Products</Chip>
-                <Chip active={marketFilter === "Service"} onClick={() => setMarketFilter("Service")}>Services</Chip>
+                <Chip active={marketFilter === 'All'} onClick={() => setMarketFilter('All')}>
+                  All
+                </Chip>
+                <Chip active={marketFilter === 'Product'} onClick={() => setMarketFilter('Product')}>
+                  Products
+                  </Chip>
+                                  <Chip active={marketFilter === 'Service'} onClick={() => setMarketFilter('Service')}>
+                  Services
+                </Chip>
                 <div className="grow" />
                 <button
                   onClick={() => setListingFormOpen(true)}
@@ -1053,12 +877,12 @@ export default function Home() {
 
               <div className="grid gap-4">
                 {market
-                  .filter((m) => (marketFilter === "All" ? true : m.kind === marketFilter))
+                  .filter((m) => (marketFilter === 'All' ? true : m.kind === marketFilter))
                   .sort((a, b) => b.createdAt - a.createdAt)
                   .map((m) => {
                     const cKey = `market:${m.id}`;
                     return (
-                      <article key={m.id} className="rounded-xl bg-neutral-900 border border-neutral-800 p-4">
+                      <article key={m.id} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
                         <div className="flex items-center justify-between">
                           <div className="text-xs text-neutral-400">
                             {m.kind} • by {m.postedBy.name}
@@ -1070,9 +894,9 @@ export default function Home() {
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={m.imageUrl} className="mt-2 rounded-md border border-neutral-800" alt="" />
                         )}
-                        <p className="text-sm text-neutral-300 mt-1">{m.description}</p>
-                        <div className="mt-2 text-xs text-neutral-400 flex flex-wrap gap-3">
-                          {m.price && <span>💷 £{m.price}</span>}
+                        <p className="mt-1 text-sm text-neutral-300">{m.description}</p>
+                        <div className="mt-2 flex flex-wrap gap-3 text-xs text-neutral-400">
+                          {m.price && <span>£{m.price}</span>}
                           {m.locationText && <span>📍 {m.locationText}</span>}
                           {m.contactOrLink && (
                             <a className="text-cyan-300 hover:underline" href={m.contactOrLink} target="_blank" rel="noreferrer">
@@ -1091,18 +915,19 @@ export default function Home() {
                     );
                   })}
                 {market.length === 0 && (
-                  <div className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 text-neutral-400 text-sm">No listings yet.</div>
+                  <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">No listings yet.</div>
                 )}
               </div>
             </>
           )}
 
-          {/* ------------------------- COLLABORATION ----------------------- */}
-          {tab === "collaboration" && (
+          {/* COLLABORATION */}
+          {tab === 'collaboration' && (
             <>
               <SectionDisclaimer>
                 Collaboration posts are user-organised. Parasphere doesn’t mediate or guarantee any arrangement—please verify reputation, safety, and terms independently.
               </SectionDisclaimer>
+
               <div className="mb-3">
                 <button
                   onClick={() => setCollabFormOpen(true)}
@@ -1118,7 +943,7 @@ export default function Home() {
                   .map((c) => {
                     const cKey = `collab:${c.id}`;
                     return (
-                      <article key={c.id} className="rounded-xl bg-neutral-900 border border-neutral-800 p-4">
+                      <article key={c.id} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
                         <div className="flex items-center justify-between">
                           <h3 className="text-lg font-semibold">{c.title}</h3>
                           <StarBadge value={collabStars[c.id] ?? 0} onClick={() => giveCollabStar(c.id)} />
@@ -1128,10 +953,10 @@ export default function Home() {
                           <img src={c.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800" />
                         )}
                         {c.description && <p className="text-sm text-neutral-300">{c.description}</p>}
-                        <div className="mt-2 text-xs text-neutral-400 flex flex-wrap gap-3">
+                        <div className="mt-2 flex flex-wrap gap-3 text-xs text-neutral-400">
                           {c.dateISO && <span>🗓 {new Date(c.dateISO).toLocaleString()}</span>}
                           {c.locationText && <span>📍 {c.locationText}</span>}
-                          {c.priceText && <span>💷 {c.priceText}</span>}
+                          {c.priceText && <span>£{c.priceText}</span>}
                           {c.contact && (
                             <a className="text-cyan-300 hover:underline" href={c.contact} target="_blank" rel="noreferrer">
                               Contact / Link
@@ -1149,7 +974,7 @@ export default function Home() {
                     );
                   })}
                 {collabs.length === 0 && (
-                  <div className="rounded-xl bg-neutral-900 border border-neutral-800 p-4 text-neutral-400 text-sm">No collaboration posts yet.</div>
+                  <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">No collaboration posts yet.</div>
                 )}
               </div>
             </>
@@ -1157,17 +982,298 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ------------------------------ MODALS ------------------------------- */}
+      {/* ------------------------------- MODALS ------------------------------- */}
+
+      {/* Add Post (required location via type-ahead) */}
+      <Modal open={postFormOpen} onClose={() => setPostFormOpen(false)}>
+        <form onSubmit={handleAddPost} className="space-y-3">
+          <h3 className="text-lg font-semibold">Add Post</h3>
+
+          <input
+            name="title"
+            placeholder="Title"
+            required
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+
+          {/* Location (required) */}
+          <div>
+            <div className="mb-1 text-sm text-neutral-300">Location (required)</div>
+            <input
+              value={locQuery}
+              onChange={(e) => {
+                setLocQuery(e.target.value);
+                setSelectedLocId('');
+              }}
+              placeholder="Start typing a location…"
+              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+            />
+            {!!locQuery && (
+              <div className="mt-2 max-h-44 overflow-auto rounded-md border border-neutral-800 bg-neutral-950">
+                {locationOptions.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-neutral-500">No matches.</div>
+                )}
+                {locationOptions.map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedLocId(l.id);
+                      setLocQuery(l.title);
+                    }}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-neutral-900 ${
+                      selectedLocId === l.id ? 'bg-neutral-900' : ''
+                    }`}
+                  >
+                    <span>{l.title}</span>
+                    {selectedLocId === l.id && <span className="text-cyan-300">Selected</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+            <input type="hidden" name="locationId" value={selectedLocId} />
+            {!selectedLocId && (
+              <div className="mt-1 text-xs text-red-300">Pick a location from the list before posting.</div>
+            )}
+          </div>
+
+          <textarea
+            name="desc"
+            placeholder="What happened? Evidence? Notes…"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+
+          {/* Tag friends */}
+          <div>
+            <div className="mb-1 text-sm text-neutral-300">Tag friends</div>
+            <div className="flex flex-wrap gap-2">
+              {Object.values(usersById).map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => toggle(postTagUsers, u.id, setPostTagUsers)}
+                  className={`rounded-full border px-3 py-1 text-sm ${
+                    postTagUsers.includes(u.id)
+                      ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+                      : 'border-neutral-700 text-neutral-300'
+                  }`}
+                >
+                  {u.name}
+                </button>
+              ))}
+              {Object.values(usersById).length === 0 && (
+                <span className="text-xs text-neutral-600">No users yet.</span>
+              )}
+            </div>
+          </div>
+
+          {/* Photo */}
+          <div>
+            <div className="mb-1 text-sm text-neutral-300">Photo (optional)</div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={postImgChange}
+              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+            />
+            {postImg && (
+              <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={postImg} alt="preview" className="max-h-64 w-auto rounded-md border border-neutral-800" />
+                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
+                  <span className="truncate">{postImgName}</span>
+                  <button type="button" onClick={postImgClear} className="text-neutral-300 hover:underline">
+                    Remove
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Link */}
+          <input
+            name="link"
+            placeholder="Link (FB, YouTube, TikTok)"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setPostFormOpen(false)}
+              className="rounded-md border border-neutral-700 px-3 py-1.5"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!selectedLocId}
+              className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-50"
+            >
+              Post
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Location */}
+      <Modal open={locFormOpen} onClose={() => setLocFormOpen(false)}>
+        <form onSubmit={handleAddLocation} className="space-y-3">
+          <h3 className="text-lg font-semibold">Add Location</h3>
+          <input name="title" placeholder="Location title" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <select name="type" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
+            <option value="HAUNTING">Haunting</option>
+            <option value="UFO">UFO</option>
+            <option value="CRYPTID">Cryptid</option>
+            <option value="EVENT">Event</option>
+          </select>
+          <textarea name="summary" placeholder="Short summary (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input name="address" placeholder="Address (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input name="priceInfo" placeholder="Prices (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input name="website" placeholder="Website (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+
+          <div>
+            <div className="mb-1 text-sm text-neutral-300">Main photo (optional)</div>
+            <input type="file" accept="image/*" onChange={locImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            {locImg && (
+              <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={locImg} alt="preview" className="max-h-64 w-auto rounded-md border border-neutral-800" />
+                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
+                  <span className="truncate">{locImgName}</span>
+                  <button type="button" onClick={locImgClear} className="text-neutral-300 hover:underline">Remove</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <input name="lng" defaultValue={newLoc?.lng ?? -2.5} placeholder="Lng" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            <input name="lat" defaultValue={newLoc?.lat ?? 54.3} placeholder="Lat" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setLocFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">Cancel</button>
+            <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">Save</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Event */}
+      <Modal open={eventFormOpen} onClose={() => setEventFormOpen(false)}>
+        <form onSubmit={handleAddEvent} className="space-y-3">
+          <h3 className="text-lg font-semibold">Add Event</h3>
+          <input name="title" placeholder="Title" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <textarea name="desc" placeholder="Description (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input name="where" placeholder="Location (text)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <div className="mb-1 text-xs text-neutral-400">From</div>
+              <input type="datetime-local" name="start" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            </div>
+            <div>
+              <div className="mb-1 text-xs text-neutral-400">To</div>
+              <input type="datetime-local" name="end" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-1 text-sm text-neutral-300">Event photo (optional)</div>
+            <input type="file" accept="image/*" onChange={evImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            {evImg && (
+              <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={evImg} alt="" className="mt-2 rounded-md border border-neutral-800" />
+                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
+                  <span className="truncate">{evImgName}</span>
+                  <button type="button" onClick={evImgClear} className="text-neutral-300 hover:underline">Remove</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <input name="price" placeholder="Price (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input name="link" placeholder="Ticket / Info link (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setEventFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">Cancel</button>
+            <button type="submit" className="rounded-md border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-purple-200 hover:bg-purple-500/20">Save</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Listing */}
+      <Modal open={listingFormOpen} onClose={() => setListingFormOpen(false)}>
+        <form onSubmit={handleAddListing} className="space-y-3">
+          <h3 className="text-lg font-semibold">Add Listing</h3>
+          <select name="kind" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
+            <option>Product</option>
+            <option>Service</option>
+          </select>
+          <input name="title" placeholder="Title" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <textarea name="desc" placeholder="Description" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <div className="grid grid-cols-2 gap-2">
+            <input name="price" placeholder="Price (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            <input name="where" placeholder="Location (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          </div>
+
+          <div>
+            <div className="mb-1 text-sm text-neutral-300">Photos (optional)</div>
+            <input type="file" accept="image/*" onChange={mkImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            {mkImg && (
+              <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={mkImg} className="mt-2 rounded-md border border-neutral-800" alt="" />
+                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
+                  <span className="truncate">{mkImgName}</span>
+                  <button type="button" onClick={mkImgClear} className="text-neutral-300 hover:underline">Remove</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <input name="contact" placeholder="Contact or link" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setListingFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">Cancel</button>
+            <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">Save</button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Collaboration */}
+      <Modal open={collabFormOpen} onClose={() => setCollabFormOpen(false)}>
+        <form onSubmit={handleAddCollab} className="space-y-3">
+          <h3 className="text-lg font-semibold">Add Collaboration</h3>
+          <input name="title" placeholder="Title" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <textarea name="desc" placeholder="Details (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input type="datetime-local" name="date" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input name="where" placeholder="Location (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input name="price" placeholder="Price (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input name="contact" placeholder="Contact or link" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+
+          <div>
+            <div className="mb-1 text-sm text-neutral-300">Photo (optional)</div>
+            <input type="file" accept="image/*" onChange={cbImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            {cbImg && (
+              <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={cbImg} alt="" className="mt-2 rounded-md border border-neutral-800" />
+                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
+                  <span className="truncate">{cbImgName}</span>
+                  <button type="button" onClick={cbImgClear} className="text-neutral-300 hover:underline">Remove</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setCollabFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">Cancel</button>
+            <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">Save</button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Comment dialog (universal) */}
-      <Modal
-        open={commentOpen}
-        onClose={() => {
-          setCommentOpen(false);
-          setCommentText("");
-          setCommentTags([]);
-          cImgClear();
-        }}
-      >
+      <Modal open={commentOpen} onClose={() => { setCommentOpen(false); setCommentText(''); setCommentTags([]); cImgClear(); }}>
         <div className="space-y-3">
           <h3 className="text-lg font-semibold">Add Comment</h3>
           <textarea
@@ -1177,26 +1283,39 @@ export default function Home() {
             className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
           />
           <div>
-            <div className="text-sm text-neutral-300 mb-1">Attach photo (optional)</div>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={cImgChange}
-              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 w-full"
-            />
-            {cImg && (
-              <div className="rounded-md border border-neutral-800 bg-neutral-950 p-2 mt-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={cImg} alt="preview" className="max-h-56 w-auto rounded-md border border-neutral-800" />
-                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-                  <span className="truncate">{cImgName}</span>
-                  <button type="button" onClick={cImgClear} className="text-neutral-300 hover:underline">Remove</button>
-                </div>
-              </div>
-            )}
-          </div>
+           {/* Attach photo (optional) */}
+<div>
+  <div className="mb-1 text-sm text-neutral-300">Attach photo (optional)</div>
+  <input
+    type="file"
+    accept="image/*"
+    onChange={cImgChange}
+    className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+  />
+  {cImg && (
+    <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={cImg}
+        alt="preview"
+        className="max-h-56 w-auto rounded-md border border-neutral-800"
+      />
+      <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
+        <span className="truncate">{cImgName}</span>
+        <button
+          type="button"
+          onClick={cImgClear}
+          className="text-neutral-300 hover:underline"
+        >
+          Remove
+        </button>
+      </div>
+    </div>
+  )}
+  </div>
+</div> 
 
-          {/* Optional: tag users (once usersById is populated) */}
+          {/* Tag friends (optional) */}
           <div>
             <div className="text-sm text-neutral-300 mb-1">Tag friends (optional)</div>
             <div className="flex flex-wrap gap-2">
@@ -1208,7 +1327,9 @@ export default function Home() {
                     setCommentTags((prev) => (prev.includes(u.id) ? prev.filter((x) => x !== u.id) : [...prev, u.id]))
                   }
                   className={`rounded-full border px-3 py-1 text-sm ${
-                    commentTags.includes(u.id) ? "border-cyan-500 bg-cyan-500/10 text-cyan-300" : "border-neutral-700 text-neutral-300"
+                    commentTags.includes(u.id)
+                      ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+                      : 'border-neutral-700 text-neutral-300'
                   }`}
                 >
                   {u.name}
@@ -1224,7 +1345,7 @@ export default function Home() {
             <button
               onClick={() => {
                 setCommentOpen(false);
-                setCommentText("");
+                setCommentText('');
                 setCommentTags([]);
                 cImgClear();
               }}
@@ -1242,7 +1363,56 @@ export default function Home() {
           </div>
         </div>
       </Modal>
+
+      {/* Edit Profile / Avatar Modal */}
+      <Modal open={profileModalOpen} onClose={() => setProfileModalOpen(false)}>
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold">Edit Profile</h3>
+          <div className="flex items-center gap-3">
+            {/* Avatar preview */}
+            <div className="h-16 w-16 rounded-full overflow-hidden border border-neutral-700">
+              {avatarPreview || currentUser.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarPreview || currentUser.avatarUrl}
+                  alt="avatar"
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-neutral-600">No photo</div>
+              )}
+            </div>
+
+            <input
+              type="file"
+              accept="image/*"
+              onChange={avatarChange}
+              className="flex-1 rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setProfileModalOpen(false)}
+              className="rounded-md border border-neutral-700 px-3 py-1.5"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={saveAvatar}
+              disabled={!avatarPreview}
+              className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-50"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </Modal>
     </main>
   );
 }
 
+
+
+
+                 
