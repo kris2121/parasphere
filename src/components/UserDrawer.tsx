@@ -23,6 +23,7 @@ type Props = {
   onMessage?: (userId: string) => void;
   onBlock?: (userId: string) => void;
   onReport?: (userId: string) => void;
+  onEditProfile?: () => void;
   /** called with the edited profile (id preserved) */
   onSave?: (next: UserMini) => void;
 
