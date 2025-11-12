@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export type UserMini = {
   id: string;
@@ -15,7 +15,6 @@ export type UserMini = {
 type Props = {
   open: boolean;
   user?: UserMini;
-  /** show a star tally if you like */
   stars?: number;
 
   onGiveStar?: (userId: string) => void;
@@ -23,8 +22,8 @@ type Props = {
   onMessage?: (userId: string) => void;
   onBlock?: (userId: string) => void;
   onReport?: (userId: string) => void;
-  onEditProfile?: () => void;
-  /** called with the edited profile (id preserved) */
+
+  /** Save callback for edited profile (id preserved) */
   onSave?: (next: UserMini) => void;
 
   onClose: () => void;
@@ -48,27 +47,51 @@ export default function UserDrawer({
 }: Props) {
   const u = user ?? { id: 'u_current', name: 'You' };
 
-  // local editable fields
+  // editable fields (local state)
   const [name, setName] = useState(u.name ?? '');
   const [place, setPlace] = useState(u.location ?? '');
   const [bio, setBio] = useState(u.bio ?? '');
   const [website, setWebsite] = useState(u.website ?? '');
+  const [avatarUrl, setAvatarUrl] = useState<string | undefined>(u.avatarUrl);
 
+  // hydrate when "user" changes
   useEffect(() => {
-    // hydrate form when user changes
     setName(u.name ?? '');
     setPlace(u.location ?? '');
     setBio(u.bio ?? '');
     setWebsite(u.website ?? '');
+    setAvatarUrl(u.avatarUrl);
   }, [u.id]);
 
   // esc to close
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
+
+  // avatar upload (click avatar -> file picker -> auto cover)
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  function handleAvatarClick() {
+    fileInputRef.current?.click();
+  }
+
+  function handleAvatarFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      // Data URL preview; object-fit: cover in img will auto center/crop visually
+      if (typeof reader.result === 'string') setAvatarUrl(reader.result);
+    };
+    reader.readAsDataURL(f);
+    // clear for re-upload if same file picked again later
+    e.target.value = '';
+  }
 
   if (!open) return null;
 
@@ -80,16 +103,30 @@ export default function UserDrawer({
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-neutral-800 px-4 py-3">
         {/* avatar */}
-        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-neutral-800 bg-neutral-900">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {u.avatarUrl ? (
-            <img src={u.avatarUrl} alt={u.name} className="h-full w-full object-cover" />
+        <button
+          type="button"
+          onClick={handleAvatarClick}
+          title="Change profile photo"
+          className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-neutral-800 bg-neutral-900"
+        >
+          {avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatarUrl} alt={u.name || 'avatar'} className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-xs text-neutral-500">
               IMG
             </div>
           )}
-        </div>
+        </button>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleAvatarFile}
+          className="hidden"
+        />
+
         <div className="min-w-0">
           <div className="truncate text-sm text-neutral-400">Editing Profile</div>
           <div className="truncate text-lg font-semibold">{u.name || 'You'}</div>
@@ -111,7 +148,7 @@ export default function UserDrawer({
         </div>
       </div>
 
-      {/* Body (content-sized with internal scroll) */}
+      {/* Body */}
       <div className="max-h-[80vh] overflow-y-auto px-4 pb-5 pt-4">
         <div className="grid gap-3">
           <label className="grid gap-1">
@@ -177,6 +214,7 @@ export default function UserDrawer({
                     location: place.trim(),
                     website: website.trim(),
                     bio: bio.trim(),
+                    avatarUrl: avatarUrl, // persist chosen avatar
                   })
                 }
                 className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-300 hover:bg-cyan-500/20"
@@ -224,4 +262,7 @@ export default function UserDrawer({
     </>
   );
 }
+
+
+
 

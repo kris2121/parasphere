@@ -1,14 +1,166 @@
 'use client';
 
-import React from 'react';
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import React, { FormEvent, useEffect, useMemo, useRef, useState, createContext, useContext } from 'react';
 import LiveMap, { LocationData, LiveMapHandle } from '@/components/LiveMap';
 import LocationDrawer from '@/components/LocationDrawer';
 import UserDrawer, { UserMini } from '@/components/UserDrawer';
 import MapActions from '@/components/MapActions';
 import FilterBar from '@/components/FilterBar';
 
-/* ------------------------------ Small UI bits ------------------------------ */
+/* =========================== Country Scope Context =========================== */
+
+type ScopeCtx = { country: string; setCountry: (c: string) => void };
+const Scope = createContext<ScopeCtx | null>(null);
+
+function ScopeProvider({ children }: { children: React.ReactNode }) {
+  const initial = useMemo(() => {
+    if (typeof window === 'undefined') return 'GB';
+    const url = new URL(window.location.href);
+    const q = url.searchParams.get('country');
+    const saved = localStorage.getItem('ps.country');
+    const guess = (navigator.language || 'en-GB').split('-').pop() || 'GB';
+    return (q || saved || guess).toUpperCase();
+  }, []);
+  const [country, setCountryState] = useState(initial);
+
+  const setCountry = (c: string) => {
+    const code = (c || 'GB').toUpperCase();
+    setCountryState(code);
+    try {
+      localStorage.setItem('ps.country', code);
+      const u = new URL(window.location.href);
+      u.searchParams.set('country', code);
+      history.replaceState({}, '', u.toString());
+    } catch {}
+  };
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ps.country', country);
+    } catch {}
+  }, [country]);
+
+  return <Scope.Provider value={{ country, setCountry }}>{children}</Scope.Provider>;
+}
+
+function useScope() {
+  const v = useContext(Scope);
+  if (!v) throw new Error('useScope used outside provider');
+  return v;
+}
+
+/* ============================== Country helpers ============================== */
+
+function useCountries() {
+  const [countries, setCountries] = useState<Array<{ code: string; name: string; region?: string }>>([]);
+  useEffect(() => {
+    let ok = true;
+    fetch('/countries.json')
+      .then((r) => r.json())
+      .then((list) => {
+        if (ok) setCountries(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {
+        setCountries([
+          { code: 'EU', name: 'Europe (multi-country)', region: 'Region' },
+          { code: 'US', name: 'United States', region: 'Americas' },
+          { code: 'GB', name: 'United Kingdom', region: 'Europe' },
+          { code: 'CA', name: 'Canada', region: 'Americas' },
+          { code: 'AU', name: 'Australia', region: 'Oceania' },
+        ]);
+      });
+    return () => {
+      ok = false;
+    };
+  }, []);
+  return countries;
+}
+
+function labelFor(code: string, all: Array<{ code: string; name: string }>) {
+  const hit = all.find((c) => c.code.toUpperCase() === code.toUpperCase());
+  return hit ? `${hit.name} (${hit.code})` : code.toUpperCase();
+}
+
+function CountrySelect() {
+  const { country, setCountry } = useScope();
+  const countries = useCountries();
+
+  const options = useMemo(() => {
+    if (!countries.length) return [];
+    const eu = countries.filter((c) => c.code.toUpperCase() === 'EU');
+    const rest = countries.filter((c) => c.code.toUpperCase() !== 'EU').sort((a, b) => a.name.localeCompare(b.name));
+    return [...eu, ...rest];
+  }, [countries]);
+
+  function normalizeToCode(input: string) {
+    const trimmed = (input || '').trim();
+    if (!trimmed) return country;
+
+    const exactCode = options.find((o) => o.code.toUpperCase() === trimmed.toUpperCase());
+    if (exactCode) return exactCode.code;
+
+    const matchParen = trimmed.match(/\(([A-Za-z]{2,3})\)\s*$/);
+    if (matchParen) {
+      const c = matchParen[1].toUpperCase();
+      if (options.some((o) => o.code.toUpperCase() === c)) return c;
+    }
+
+    const byName = options.find((o) => o.name.toLowerCase() === trimmed.toLowerCase());
+    if (byName) return byName.code;
+
+    return country;
+  }
+
+  const [inputValue, setInputValue] = useState('');
+
+  useEffect(() => {
+    setInputValue(labelFor(country, options));
+  }, [country, options]);
+
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full bg-zinc-800/60 px-2 py-1 text-xs">
+      <span className="opacity-70">Show posts from</span>
+      <input
+        list="countries"
+        className="bg-transparent outline-none text-neutral-100 placeholder-neutral-400"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onBlur={() => setCountry(normalizeToCode(inputValue))}
+        placeholder="Type a country…"
+      />
+      <datalist id="countries">
+        {options.map((o) => (
+          <option key={o.code} value={`${o.name} (${o.code})`} />
+        ))}
+      </datalist>
+    </div>
+  );
+}
+
+const byCountry =
+  <T extends { countryCode?: string }>(code: string) =>
+  (x: T) =>
+    (x.countryCode?.toUpperCase() || '') === code;
+
+/* ================================= UI bits ================================= */
+
+function TranslatePost({ text }: { text?: string }) {
+  const [showTranslated, setShowTranslated] = useState(false);
+  if (!text) return null;
+  return (
+    <div className="mt-1">
+      <p className="text-sm text-neutral-300">{showTranslated ? text : text}</p>
+      <button
+        type="button"
+        onClick={() => setShowTranslated((v) => !v)}
+        className="mt-1 text-xs text-cyan-300 hover:underline"
+      >
+        {showTranslated ? 'Show original' : 'Translate'}
+      </button>
+    </div>
+  );
+}
+
 function StarBadge({ value, onClick }: { value: number; onClick?: () => void }) {
   return (
     <button
@@ -16,7 +168,7 @@ function StarBadge({ value, onClick }: { value: number; onClick?: () => void }) 
       className="inline-flex items-center gap-1 rounded-full border border-yellow-600/60 bg-yellow-500/10 px-2 py-0.5 text-xs text-yellow-200 hover:bg-yellow-500/20"
       title="Give a star"
     >
-      ★ <span className="min-w-[1.2rem] text-center">{value}</span>
+      <span>★</span> <span className="min-w-[1.2rem] text-center">{value}</span>
     </button>
   );
 }
@@ -34,9 +186,7 @@ function Chip({
     <button
       onClick={onClick}
       className={`rounded-full border px-3 py-1 text-sm ${
-        active
-          ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
-          : 'border-neutral-700 text-neutral-300 hover:border-neutral-500'
+        active ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-neutral-700 text-neutral-300 hover:border-neutral-500'
       }`}
     >
       {children}
@@ -74,7 +224,8 @@ function SectionDisclaimer({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* --------------------------------- Types ---------------------------------- */
+/* ================================== Types ================================== */
+
 type DemoPost = {
   id: string;
   type: 'Post • Haunting' | 'Post • UFO' | 'Post • Cryptid' | 'Friend • Post';
@@ -100,6 +251,8 @@ type MarketplaceItem = {
   contactOrLink?: string;
   createdAt: number;
   postedBy: { id: string; name: string };
+  countryCode?: string;
+  postalCode?: string;  // added
 };
 
 type EventItem = {
@@ -114,6 +267,8 @@ type EventItem = {
   imageUrl?: string;
   createdAt: number;
   postedBy: { id: string; name: string };
+  countryCode?: string;
+  postalCode?: string;  // added
 };
 
 type CollabItem = {
@@ -127,9 +282,12 @@ type CollabItem = {
   imageUrl?: string;
   createdAt: number;
   postedBy: { id: string; name: string };
+  countryCode?: string;
+  postalCode?: string;  // added
 };
 
-/* ------------------------------ Helper hooks ------------------------------ */
+/* =============================== Image preview ============================== */
+
 function useImagePreview() {
   const [url, setUrl] = useState<string | undefined>(undefined);
   const [name, setName] = useState<string | undefined>(undefined);
@@ -155,33 +313,37 @@ function useImagePreview() {
   return { url, name, onChange, clear };
 }
 
-/* ================================ Page ==================================== */
+/* ================================ Page Inner ================================ */
+
 export default function Page() {
-  /* ----------------------- Current user (demo auth) ----------------------- */
+  return (
+    <ScopeProvider>
+      <PageInner />
+    </ScopeProvider>
+  );
+}
+
+function PageInner() {
   const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatarUrl?: string }>({
     id: 'u_current',
     name: 'You',
     avatarUrl: undefined,
   });
 
-  /* Seed your own user in usersById so tagging etc. works */
   const [usersById, setUsersById] = useState<Record<string, UserMini>>({
     u_current: { id: 'u_current', name: 'You' },
   });
 
-  /* ---------------------------- Nav / Filters ---------------------------- */
   const [tab, setTab] = useState<string>('home');
   const [searchQuery, setSearchQuery] = useState('');
   const mapRef = useRef<LiveMapHandle>(null);
 
-  /* ----------------------------- Drawers -------------------------------- */
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerLoc, setDrawerLoc] = useState<LocationData | undefined>(undefined);
 
   const [userDrawerOpen, setUserDrawerOpen] = useState(false);
   const [drawerUser, setDrawerUser] = useState<UserMini | undefined>(undefined);
 
-  /* ------------------------------- Stars -------------------------------- */
   const [userStars, setUserStars] = useState<Record<string, number>>({});
   const [locationStars, setLocationStars] = useState<Record<string, number>>({});
   const [postStars, setPostStars] = useState<Record<string, number>>({});
@@ -191,15 +353,13 @@ export default function Page() {
   const inc = (setter: (f: (p: any) => any) => void, id: string) =>
     setter((prev: Record<string, number>) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
 
-  const giveUserStar = (userId: string) =>
-    setUserStars((prev) => ({ ...prev, [userId]: (prev[userId] ?? 0) + 1 }));
+  const giveUserStar = (userId: string) => setUserStars((prev) => ({ ...prev, [userId]: (prev[userId] ?? 0) + 1 }));
   const giveLocationStar = (locId: string) => inc(setLocationStars as any, locId);
   const givePostStar = (id: string) => inc(setPostStars, id);
   const giveEventStar = (id: string) => inc(setEventStars, id);
   const giveMarketStar = (id: string) => inc(setMarketStars, id);
   const giveCollabStar = (id: string) => inc(setCollabStars, id);
 
-  /* --------------------- Entities (local demo state) --------------------- */
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [posts, setPosts] = useState<DemoPost[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
@@ -207,7 +367,6 @@ export default function Page() {
   const [collabs, setCollabs] = useState<CollabItem[]>([]);
   const [marketFilter, setMarketFilter] = useState<'All' | 'Product' | 'Service'>('All');
 
-  /* --------------------------- Comments (all) ---------------------------- */
   const [comments, setComments] = useState<Record<string, any[]>>({});
   function addComment(key: string, c: any) {
     setComments((prev) => ({ ...prev, [key]: [c, ...(prev[key] ?? [])] }));
@@ -219,7 +378,6 @@ export default function Page() {
     setComments((prev) => ({ ...prev, [key]: (prev[key] ?? []).filter((x: any) => x.id !== id) }));
   }
 
-  /* --------------------- Comment modal (image + tags) -------------------- */
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentKey, setCommentKey] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
@@ -247,7 +405,6 @@ export default function Page() {
     cImgClear();
   }
 
-  /* --------------------------- Following (demo) -------------------------- */
   const [followedUsers, setFollowedUsers] = useState<string[]>([]);
   const [followedLocations, setFollowedLocations] = useState<string[]>([]);
   useEffect(() => {
@@ -264,16 +421,14 @@ export default function Page() {
   const toggleFollowUser = (userId: string) =>
     setFollowedUsers((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]));
   const toggleFollowLocation = (locId: string) =>
-    setFollowedLocations((prev) => (prev.includes(locId) ? prev.filter((id) => id !== locId) : [...prev, locId]));
+    setFollowedLocations((prev) => (prev.includes(locId) ? prev.filter((id) => id !== id) : [...prev, locId]));
 
-  /* --------------------------- Tab / filtering --------------------------- */
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
 
   function handleSelectTab(next: string) {
     if (next === 'profile') {
       openUser(currentUser.id);
-      setProfileModalOpen(true); // open editor when user taps Profile
       return;
     }
     setTab(next);
@@ -295,7 +450,6 @@ export default function Page() {
     return byTab.filter((l) => matchesQuery(l.title) || matchesQuery(l.summary));
   }, [allowed, locations, searchQuery]);
 
-  /* ------------------------------ Openers ------------------------------- */
   function openFromPin(loc: LocationData) {
     setDrawerLoc(loc);
     setDrawerOpen(true);
@@ -311,8 +465,7 @@ export default function Page() {
     setTab('home');
   }
 
-  /* ------------------------------ Add POST ------------------------------- */
-  const { url: postImg, name: postImgName, onChange: postImgChange, clear: postImgClear } = useImagePreview();
+  const { url: postImg, onChange: postImgChange, clear: postImgClear } = useImagePreview();
   const [postFormOpen, setPostFormOpen] = useState(false);
   const [postTagUsers, setPostTagUsers] = useState<string[]>([]);
   const [selectedLocId, setSelectedLocId] = useState<string>('');
@@ -361,7 +514,6 @@ export default function Page() {
       createdAt: Date.now(),
     };
     setPosts((prev) => [p, ...prev]);
-    // reset
     postImgClear();
     setPostTagUsers([]);
     setSelectedLocId('');
@@ -384,10 +536,9 @@ export default function Page() {
     });
   }
 
-  /* --------------------------- Add LOCATION ------------------------------ */
   const [locFormOpen, setLocFormOpen] = useState(false);
   const [newLoc, setNewLoc] = useState<{ lng: number; lat: number } | null>(null);
-  const { url: locImg, name: locImgName, onChange: locImgChange, clear: locImgClear } = useImagePreview();
+  const { url: locImg, onChange: locImgChange, clear: locImgClear } = useImagePreview();
 
   function openAddLocation() {
     const center = mapRef.current?.getCenter();
@@ -416,12 +567,18 @@ export default function Page() {
     locImgClear();
   }
 
-  /* ------------------ Events / Marketplace / Collab forms ----------------- */
+  const { country } = useScope();
+  const countries = useCountries();
+
   const [eventFormOpen, setEventFormOpen] = useState(false);
-  const { url: evImg, name: evImgName, onChange: evImgChange, clear: evImgClear } = useImagePreview();
+  const { url: evImg, onChange: evImgChange, clear: evImgClear } = useImagePreview();
   function handleAddEvent(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+
+    const countryCode = String(fd.get('country') || country).toUpperCase();
+    const postalCode = String(fd.get('postal') || '').trim() || undefined;
+
     setEvents((prev) => [
       ...prev,
       {
@@ -436,6 +593,8 @@ export default function Page() {
         imageUrl: evImg,
         createdAt: Date.now(),
         postedBy: { id: currentUser.id, name: currentUser.name },
+        countryCode,
+        postalCode,
       },
     ]);
     setEventFormOpen(false);
@@ -443,10 +602,14 @@ export default function Page() {
   }
 
   const [listingFormOpen, setListingFormOpen] = useState(false);
-  const { url: mkImg, name: mkImgName, onChange: mkImgChange, clear: mkImgClear } = useImagePreview();
+  const { url: mkImg, onChange: mkImgChange, clear: mkImgClear } = useImagePreview();
   function handleAddListing(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+
+    const countryCode = String(fd.get('country') || country).toUpperCase();
+    const postalCode = String(fd.get('postal') || '').trim() || undefined;
+
     setMarket((prev) => [
       {
         id: crypto.randomUUID(),
@@ -459,6 +622,8 @@ export default function Page() {
         contactOrLink: String(fd.get('contact') || '').trim() || undefined,
         createdAt: Date.now(),
         postedBy: { id: currentUser.id, name: currentUser.name },
+        countryCode,
+        postalCode,
       },
       ...prev,
     ]);
@@ -467,10 +632,14 @@ export default function Page() {
   }
 
   const [collabFormOpen, setCollabFormOpen] = useState(false);
-  const { url: cbImg, name: cbImgName, onChange: cbImgChange, clear: cbImgClear } = useImagePreview();
+  const { url: cbImg, onChange: cbImgChange, clear: cbImgClear } = useImagePreview();
   function handleAddCollab(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+
+    const countryCode = String(fd.get('country') || country).toUpperCase();
+    const postalCode = String(fd.get('postal') || '').trim() || undefined;
+
     setCollabs((prev) => [
       {
         id: crypto.randomUUID(),
@@ -483,6 +652,8 @@ export default function Page() {
         imageUrl: cbImg,
         createdAt: Date.now(),
         postedBy: { id: currentUser.id, name: currentUser.name },
+        countryCode,
+        postalCode,
       },
       ...prev,
     ]);
@@ -490,47 +661,50 @@ export default function Page() {
     cbImgClear();
   }
 
-  /* --------------------------- Profile picture ---------------------------- */
-  const [profileModalOpen, setProfileModalOpen] = useState(false);
-  const { url: avatarPreview, name: avatarName, onChange: avatarChange, clear: avatarClear } = useImagePreview();
-  function saveAvatar() {
-    if (!avatarPreview) {
-      setProfileModalOpen(false);
-      return;
+  // sorters
+  const sortPosts = (a: DemoPost, b: DemoPost) => {
+    if (tab === 'home') return b.createdAt - a.createdAt;
+    if (tab === 'hauntings' || tab === 'ufos' || tab === 'cryptids') {
+      const sa = postStars[a.id] ?? 0;
+      const sb = postStars[b.id] ?? 0;
+      if (sb !== sa) return sb - sa;
+      return b.createdAt - a.createdAt;
     }
-    setCurrentUser((u) => ({ ...u, avatarUrl: avatarPreview }));
-    setUsersById((prev) => ({ ...prev, [currentUser.id]: { id: currentUser.id, name: currentUser.name, avatarUrl: avatarPreview } as any }));
-    setProfileModalOpen(false);
-    // don’t revoke object URL so it keeps rendering; would be replaced later by uploaded path
-  }
+    return b.createdAt - a.createdAt;
+  };
+  const sortEvents = (a: EventItem, b: EventItem) => {
+    const sa = eventStars[a.id] ?? 0, sb = eventStars[b.id] ?? 0;
+    if (sb !== sa) return sb - sa;
+    return a.startISO.localeCompare(b.startISO);
+  };
+  const sortMarket = (a: MarketplaceItem, b: MarketplaceItem) => {
+    const sa = marketStars[a.id] ?? 0, sb = marketStars[b.id] ?? 0;
+    if (sb !== sa) return sb - sa;
+    return b.createdAt - a.createdAt;
+  };
+  const sortCollab = (a: CollabItem, b: CollabItem) => {
+    const sa = collabStars[a.id] ?? 0, sb = collabStars[b.id] ?? 0;
+    if (sb !== sa) return sb - sa;
+    return b.createdAt - a.createdAt;
+  };
 
-  /* ---------------------------- RENDER START ------------------------------ */
   return (
     <main className="flex min-h-screen flex-col bg-[#0B0C0E] text-white">
-      {/* HEADER: logo + FilterBar in the same row */}
+      {/* HEADER */}
       <header className="sticky top-0 z-40 border-b border-neutral-800/60 bg-[#0B0C0E]/80 backdrop-blur">
         <div className="mx-auto max-w-6xl px-4 py-2">
           <div className="flex items-center gap-3">
-            {/* Logo */}
             <div className="h-10 w-10 shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo-cyan.png" alt="ParaSphere Logo" className="h-10 w-10 object-contain" />
             </div>
-
-            {/* FilterBar spans remaining width */}
             <div className="min-w-0 flex-1">
-              <FilterBar
-                query={searchQuery}
-                setQuery={setSearchQuery}
-                activeTab={tab}
-                onTabChange={handleSelectTab}
-              />
+              <FilterBar query={searchQuery} setQuery={setSearchQuery} activeTab={tab} onTabChange={handleSelectTab} />
             </div>
           </div>
         </div>
       </header>
 
-      {/* MAP AREA (drawers centered inside) */}
+      {/* MAP */}
       <section className="relative mx-auto w-full max-w-6xl px-4 pb-3 pt-3">
         <div className="relative">
           <LiveMap
@@ -544,7 +718,7 @@ export default function Page() {
 
           <MapActions onAddLocation={openAddLocation} />
 
-          {/* Drawer overlay centered INSIDE the map area */}
+          {/* Drawers overlay */}
           <div className="pointer-events-none absolute inset-0 z-50 flex items-start justify-center p-3 md:p-4">
             <div className="pointer-events-auto w-full max-w-xl">
               <LocationDrawer
@@ -567,7 +741,13 @@ export default function Page() {
                 onMessage={(uid) => alert(`(message) ${uid}`)}
                 onBlock={(uid) => alert(`(block) ${uid}`)}
                 onReport={(uid) => alert(`(report) ${uid}`)}
-                onEditProfile={() => setProfileModalOpen(true)}
+                onSave={(next) => {
+                  setUsersById((prev) => ({ ...prev, [next.id]: next }));
+                  if (next.id === currentUser.id) {
+                    setCurrentUser((u) => ({ ...u, name: next.name, avatarUrl: next.avatarUrl }));
+                  }
+                  setDrawerUser(next);
+                }}
                 onClose={() => setUserDrawerOpen(false)}
               />
             </div>
@@ -578,7 +758,7 @@ export default function Page() {
       {/* FEEDS */}
       <section>
         <div className="mx-auto max-w-6xl px-4 py-6">
-          {/* PAGE TITLE */}
+          {/* Title row + country selector where relevant */}
           <div className="mb-4">
             <h1 className="text-2xl font-semibold">
               {selectedLocationId
@@ -588,34 +768,31 @@ export default function Page() {
                 : tab === 'home'
                 ? 'HOME'
                 : tab === 'hauntings'
-                ? 'Hauntings — newest first'
+                ? 'Hauntings'
                 : tab === 'ufos'
-                ? 'UFOs — newest first'
+                ? 'UFOs'
                 : tab === 'cryptids'
-                ? 'Cryptids — newest first'
+                ? 'Cryptids'
                 : tab === 'events'
-                ? 'Events — upcoming first'
+                ? 'Events'
                 : tab === 'marketplace'
-                ? 'Marketplace — newest first'
+                ? 'Marketplace'
                 : tab === 'collaboration'
-                ? 'Collaboration — latest'
+                ? 'Collaboration'
                 : 'Feed'}
             </h1>
 
             {!selectedLocationId && !selectedUserId && tab === 'home' && (
-              <div className="mt-1 text-sm text-yellow-200">
-                Now showing posts from your followed locations and friends.
-              </div>
+              <div className="mt-1 text-sm text-yellow-200">Now showing posts from your followed locations and friends.</div>
             )}
 
-            {/* Follow filters on HOME */}
             {tab === 'home' && (
               <div className="mt-3 grid gap-3">
                 <div>
                   <div className="mb-1 text-xs text-neutral-400">Followed users</div>
                   <div className="flex flex-wrap gap-2">
                     {followedUsers.length === 0 && (
-                      <span className="text-xs text-neutral-500">You’re not following any users yet.</span>
+                      <span className="text-xs text-neutral-500">You are not following any users yet.</span>
                     )}
                     {followedUsers.map((uid) => (
                       <Chip
@@ -635,7 +812,7 @@ export default function Page() {
                   <div className="mb-1 text-xs text-neutral-400">Followed locations</div>
                   <div className="flex flex-wrap gap-2">
                     {followedLocations.length === 0 && (
-                      <span className="text-xs text-neutral-500">You’re not following any locations yet.</span>
+                      <span className="text-xs text-neutral-500">You are not following any locations yet.</span>
                     )}
                     {followedLocations.map((lid) => (
                       <Chip
@@ -654,7 +831,6 @@ export default function Page() {
               </div>
             )}
 
-            {/* Add Post button on feed tabs */}
             {['home', 'hauntings', 'ufos', 'cryptids'].includes(tab) && (
               <div className="mt-3">
                 <button
@@ -663,6 +839,12 @@ export default function Page() {
                 >
                   + Add Post
                 </button>
+              </div>
+            )}
+
+            {['events', 'marketplace', 'collaboration'].includes(tab) && (
+              <div className="mt-3">
+                <CountrySelect />
               </div>
             )}
           </div>
@@ -677,9 +859,9 @@ export default function Page() {
                     (!selectedLocationId || p.locationId === selectedLocationId) &&
                     (!searchQuery ||
                       p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      p.desc.toLowerCase().includes(searchQuery.toLowerCase())),
+                      p.desc.toLowerCase().includes(searchQuery.toLowerCase()))
                 )
-                .sort((a, b) => b.createdAt - a.createdAt)
+                .sort(sortPosts)
                 .map((p) => {
                   const cKey = `post:${p.id}`;
                   return (
@@ -694,7 +876,6 @@ export default function Page() {
                         <StarBadge value={postStars[p.id] ?? 0} onClick={() => givePostStar(p.id)} />
                       </div>
 
-                      {/* Author controls */}
                       {canEditPost(p) && (
                         <div className="mt-2 flex items-center gap-2 text-xs">
                           <button
@@ -719,12 +900,9 @@ export default function Page() {
                       )}
 
                       <h3 className="mt-1 text-lg font-semibold">{p.title}</h3>
-                      <p className="text-sm text-neutral-300">{p.desc}</p>
+                      <TranslatePost text={p.desc} />
 
-                      {p.imageUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={p.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800" />
-                      )}
+                      {p.imageUrl && <img src={p.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800" />}
                       {p.linkUrl && (
                         <a className="mt-2 inline-block text-cyan-300 hover:underline" href={p.linkUrl} target="_blank" rel="noreferrer">
                           View link
@@ -732,7 +910,7 @@ export default function Page() {
                       )}
                       {p.locationId && (
                         <div className="mt-2 text-xs text-neutral-400">
-                          Location:&nbsp;
+                          Location:{' '}
                           <button
                             className="text-cyan-300 hover:underline"
                             onClick={() => {
@@ -746,7 +924,6 @@ export default function Page() {
                         </div>
                       )}
 
-                      {/* Comments */}
                       <div className="mt-3 flex items-center gap-3">
                         <button className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900" onClick={() => openComment(cKey)}>
                           Comment
@@ -763,19 +940,13 @@ export default function Page() {
                                   by <span className="text-cyan-300">{c.authorName}</span> • {new Date(c.createdAt).toLocaleString()}
                                 </div>
                                 {canEditComment(c) && (
-                                  <button
-                                    className="rounded border border-neutral-700 px-2 py-0.5 hover:bg-neutral-900"
-                                    onClick={() => deleteComment(cKey, c.id)}
-                                  >
+                                  <button className="rounded border border-neutral-700 px-2 py-0.5 hover:bg-neutral-900" onClick={() => deleteComment(cKey, c.id)}>
                                     Delete
                                   </button>
                                 )}
                               </div>
                               <div className="mt-1 text-sm text-neutral-200">{c.text}</div>
-                              {c.imageUrl && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={c.imageUrl} alt="" className="mt-2 max-h-60 w-auto rounded-md border border-neutral-800" />
-                              )}
+                              {c.imageUrl && <img src={c.imageUrl} alt="" className="mt-2 max-h-60 w-auto rounded-md border border-neutral-800" />}
                             </div>
                           ))}
                         </div>
@@ -783,9 +954,7 @@ export default function Page() {
                     </article>
                   );
                 })}
-              {posts.length === 0 && (
-                <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">No posts yet.</div>
-              )}
+              {posts.length === 0 && <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">No posts yet.</div>}
             </div>
           )}
 
@@ -807,7 +976,8 @@ export default function Page() {
 
               <div className="grid gap-4">
                 {events
-                  .sort((a, b) => a.startISO.localeCompare(b.startISO))
+                  .filter(byCountry<EventItem>(country))
+                  .sort(sortEvents)
                   .map((ev) => {
                     const cKey = `event:${ev.id}`;
                     return (
@@ -817,16 +987,15 @@ export default function Page() {
                           <StarBadge value={eventStars[ev.id] ?? 0} onClick={() => giveEventStar(ev.id)} />
                         </div>
                         <h3 className="text-lg font-semibold">{ev.title}</h3>
-                        {ev.imageUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={ev.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800" />
-                        )}
-                        {ev.description && <p className="mt-1 text-sm text-neutral-300">{ev.description}</p>}
+                        {ev.imageUrl && <img src={ev.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800" />}
+                        {ev.description && <TranslatePost text={ev.description} />}
                         <div className="mt-2 text-xs text-neutral-400">
-                          🗓 {new Date(ev.startISO).toLocaleString()} {ev.endISO ? `— ${new Date(ev.endISO).toLocaleString()}` : ''}
+                          Date: {new Date(ev.startISO).toLocaleString()} {ev.endISO ? `— ${new Date(ev.endISO).toLocaleString()}` : ''}
                         </div>
-                        {ev.locationText && <div className="text-xs text-neutral-400">📍 {ev.locationText}</div>}
-                        {ev.priceText && <div className="text-xs text-neutral-400">💷 {ev.priceText}</div>}
+                        {ev.locationText && <div className="text-xs text-neutral-400">Location: {ev.locationText}</div>}
+                        {ev.countryCode && <div className="text-xs text-neutral-400">Country: {ev.countryCode}</div>}
+                        {ev.postalCode && <div className="text-xs text-neutral-400">Post code: {ev.postalCode}</div>}
+                        {ev.priceText && <div className="text-xs text-neutral-400">Price: {ev.priceText}</div>}
                         {ev.link && (
                           <a className="mt-2 inline-block text-purple-200 hover:underline" href={ev.link} target="_blank" rel="noreferrer">
                             Tickets / Info
@@ -842,7 +1011,7 @@ export default function Page() {
                       </article>
                     );
                   })}
-                {events.length === 0 && (
+                {events.filter(byCountry<EventItem>(country)).length === 0 && (
                   <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">No events yet.</div>
                 )}
               </div>
@@ -853,7 +1022,7 @@ export default function Page() {
           {tab === 'marketplace' && (
             <>
               <SectionDisclaimer>
-                Marketplace listings are user-posted advertisements. Parasphere isn’t a party to any transaction and accepts no liability. Do your own checks, warranties, and payments externally.
+                Marketplace listings are user-posted advertisements. Parasphere is not a party to any transaction and accepts no liability. Do your own checks, warranties, and payments externally.
               </SectionDisclaimer>
 
               <div className="mb-3 flex items-center gap-2">
@@ -862,8 +1031,8 @@ export default function Page() {
                 </Chip>
                 <Chip active={marketFilter === 'Product'} onClick={() => setMarketFilter('Product')}>
                   Products
-                  </Chip>
-                                  <Chip active={marketFilter === 'Service'} onClick={() => setMarketFilter('Service')}>
+                </Chip>
+                <Chip active={marketFilter === 'Service'} onClick={() => setMarketFilter('Service')}>
                   Services
                 </Chip>
                 <div className="grow" />
@@ -877,8 +1046,9 @@ export default function Page() {
 
               <div className="grid gap-4">
                 {market
+                  .filter(byCountry<MarketplaceItem>(country))
                   .filter((m) => (marketFilter === 'All' ? true : m.kind === marketFilter))
-                  .sort((a, b) => b.createdAt - a.createdAt)
+                  .sort(sortMarket)
                   .map((m) => {
                     const cKey = `market:${m.id}`;
                     return (
@@ -890,14 +1060,13 @@ export default function Page() {
                           <StarBadge value={marketStars[m.id] ?? 0} onClick={() => giveMarketStar(m.id)} />
                         </div>
                         <h3 className="text-lg font-semibold">{m.title}</h3>
-                        {m.imageUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={m.imageUrl} className="mt-2 rounded-md border border-neutral-800" alt="" />
-                        )}
-                        <p className="mt-1 text-sm text-neutral-300">{m.description}</p>
+                        {m.imageUrl && <img src={m.imageUrl} className="mt-2 rounded-md border border-neutral-800" alt="" />}
+                        <TranslatePost text={m.description} />
                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-neutral-400">
-                          {m.price && <span>£{m.price}</span>}
-                          {m.locationText && <span>📍 {m.locationText}</span>}
+                          {m.price && <span>Price: £{m.price}</span>}
+                          {m.locationText && <span>Location: {m.locationText}</span>}
+                          {m.countryCode && <span>Country: {m.countryCode}</span>}
+                          {m.postalCode && <span>Post code: {m.postalCode}</span>}
                           {m.contactOrLink && (
                             <a className="text-cyan-300 hover:underline" href={m.contactOrLink} target="_blank" rel="noreferrer">
                               Contact / Link
@@ -914,7 +1083,7 @@ export default function Page() {
                       </article>
                     );
                   })}
-                {market.length === 0 && (
+                {market.filter(byCountry<MarketplaceItem>(country)).length === 0 && (
                   <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">No listings yet.</div>
                 )}
               </div>
@@ -925,7 +1094,7 @@ export default function Page() {
           {tab === 'collaboration' && (
             <>
               <SectionDisclaimer>
-                Collaboration posts are user-organised. Parasphere doesn’t mediate or guarantee any arrangement—please verify reputation, safety, and terms independently.
+                Collaboration posts are user-organised. Parasphere does not mediate or guarantee any arrangement—please verify reputation, safety, and terms independently.
               </SectionDisclaimer>
 
               <div className="mb-3">
@@ -939,7 +1108,8 @@ export default function Page() {
 
               <div className="grid gap-4">
                 {collabs
-                  .sort((a, b) => b.createdAt - a.createdAt)
+                  .filter(byCountry<CollabItem>(country))
+                  .sort(sortCollab)
                   .map((c) => {
                     const cKey = `collab:${c.id}`;
                     return (
@@ -948,15 +1118,14 @@ export default function Page() {
                           <h3 className="text-lg font-semibold">{c.title}</h3>
                           <StarBadge value={collabStars[c.id] ?? 0} onClick={() => giveCollabStar(c.id)} />
                         </div>
-                        {c.imageUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={c.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800" />
-                        )}
-                        {c.description && <p className="text-sm text-neutral-300">{c.description}</p>}
+                        {c.imageUrl && <img src={c.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800" />}
+                        {c.description && <TranslatePost text={c.description} />}
                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-neutral-400">
-                          {c.dateISO && <span>🗓 {new Date(c.dateISO).toLocaleString()}</span>}
-                          {c.locationText && <span>📍 {c.locationText}</span>}
-                          {c.priceText && <span>£{c.priceText}</span>}
+                          {c.dateISO && <span>Date: {new Date(c.dateISO).toLocaleString()}</span>}
+                          {c.locationText && <span>Location: {c.locationText}</span>}
+                          {c.countryCode && <span>Country: {c.countryCode}</span>}
+                          {c.postalCode && <span>Post code: {c.postalCode}</span>}
+                          {c.priceText && <span>Price: {c.priceText}</span>}
                           {c.contact && (
                             <a className="text-cyan-300 hover:underline" href={c.contact} target="_blank" rel="noreferrer">
                               Contact / Link
@@ -973,7 +1142,7 @@ export default function Page() {
                       </article>
                     );
                   })}
-                {collabs.length === 0 && (
+                {collabs.filter(byCountry<CollabItem>(country)).length === 0 && (
                   <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">No collaboration posts yet.</div>
                 )}
               </div>
@@ -982,21 +1151,11 @@ export default function Page() {
         </div>
       </section>
 
-      {/* ------------------------------- MODALS ------------------------------- */}
-
-      {/* Add Post (required location via type-ahead) */}
+      {/* MODALS */}
       <Modal open={postFormOpen} onClose={() => setPostFormOpen(false)}>
         <form onSubmit={handleAddPost} className="space-y-3">
           <h3 className="text-lg font-semibold">Add Post</h3>
-
-          <input
-            name="title"
-            placeholder="Title"
-            required
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-
-          {/* Location (required) */}
+          <input name="title" placeholder="Title" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
           <div>
             <div className="mb-1 text-sm text-neutral-300">Location (required)</div>
             <input
@@ -1010,9 +1169,7 @@ export default function Page() {
             />
             {!!locQuery && (
               <div className="mt-2 max-h-44 overflow-auto rounded-md border border-neutral-800 bg-neutral-950">
-                {locationOptions.length === 0 && (
-                  <div className="px-3 py-2 text-sm text-neutral-500">No matches.</div>
-                )}
+                {locationOptions.length === 0 && <div className="px-3 py-2 text-sm text-neutral-500">No matches.</div>}
                 {locationOptions.map((l) => (
                   <button
                     key={l.id}
@@ -1021,9 +1178,7 @@ export default function Page() {
                       setSelectedLocId(l.id);
                       setLocQuery(l.title);
                     }}
-                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-neutral-900 ${
-                      selectedLocId === l.id ? 'bg-neutral-900' : ''
-                    }`}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-neutral-900 ${selectedLocId === l.id ? 'bg-neutral-900' : ''}`}
                   >
                     <span>{l.title}</span>
                     {selectedLocId === l.id && <span className="text-cyan-300">Selected</span>}
@@ -1032,18 +1187,11 @@ export default function Page() {
               </div>
             )}
             <input type="hidden" name="locationId" value={selectedLocId} />
-            {!selectedLocId && (
-              <div className="mt-1 text-xs text-red-300">Pick a location from the list before posting.</div>
-            )}
+            {!selectedLocId && <div className="mt-1 text-xs text-red-300">Pick a location from the list before posting.</div>}
           </div>
 
-          <textarea
-            name="desc"
-            placeholder="What happened? Evidence? Notes…"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
+          <textarea name="desc" placeholder="What happened? Evidence? Notes…" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
 
-          {/* Tag friends */}
           <div>
             <div className="mb-1 text-sm text-neutral-300">Tag friends</div>
             <div className="flex flex-wrap gap-2">
@@ -1052,57 +1200,24 @@ export default function Page() {
                   key={u.id}
                   type="button"
                   onClick={() => toggle(postTagUsers, u.id, setPostTagUsers)}
-                  className={`rounded-full border px-3 py-1 text-sm ${
-                    postTagUsers.includes(u.id)
-                      ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
-                      : 'border-neutral-700 text-neutral-300'
-                  }`}
+                  className={`rounded-full border px-3 py-1 text-sm ${postTagUsers.includes(u.id) ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-neutral-700 text-neutral-300'}`}
                 >
                   {u.name}
                 </button>
               ))}
-              {Object.values(usersById).length === 0 && (
-                <span className="text-xs text-neutral-600">No users yet.</span>
-              )}
+              {Object.values(usersById).length === 0 && <span className="text-xs text-neutral-600">No users yet.</span>}
             </div>
           </div>
 
-          {/* Photo */}
           <div>
             <div className="mb-1 text-sm text-neutral-300">Photo (optional)</div>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={postImgChange}
-              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-            />
-            {postImg && (
-              <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={postImg} alt="preview" className="max-h-64 w-auto rounded-md border border-neutral-800" />
-                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-                  <span className="truncate">{postImgName}</span>
-                  <button type="button" onClick={postImgClear} className="text-neutral-300 hover:underline">
-                    Remove
-                  </button>
-                </div>
-              </div>
-            )}
+            <input type="file" accept="image/*" onChange={postImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
           </div>
 
-          {/* Link */}
-          <input
-            name="link"
-            placeholder="Link (FB, YouTube, TikTok)"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
+          <input name="link" placeholder="Link (FB, YouTube, TikTok)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
 
           <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setPostFormOpen(false)}
-              className="rounded-md border border-neutral-700 px-3 py-1.5"
-            >
+            <button type="button" onClick={() => setPostFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">
               Cancel
             </button>
             <button
@@ -1116,7 +1231,6 @@ export default function Page() {
         </form>
       </Modal>
 
-      {/* Add Location */}
       <Modal open={locFormOpen} onClose={() => setLocFormOpen(false)}>
         <form onSubmit={handleAddLocation} className="space-y-3">
           <h3 className="text-lg font-semibold">Add Location</h3>
@@ -1132,40 +1246,47 @@ export default function Page() {
           <input name="priceInfo" placeholder="Prices (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
           <input name="website" placeholder="Website (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
 
-          <div>
-            <div className="mb-1 text-sm text-neutral-300">Main photo (optional)</div>
-            <input type="file" accept="image/*" onChange={locImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-            {locImg && (
-              <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={locImg} alt="preview" className="max-h-64 w-auto rounded-md border border-neutral-800" />
-                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-                  <span className="truncate">{locImgName}</span>
-                  <button type="button" onClick={locImgClear} className="text-neutral-300 hover:underline">Remove</button>
-                </div>
-              </div>
-            )}
-          </div>
-
           <div className="grid grid-cols-2 gap-2">
             <input name="lng" defaultValue={newLoc?.lng ?? -2.5} placeholder="Lng" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
             <input name="lat" defaultValue={newLoc?.lat ?? 54.3} placeholder="Lat" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setLocFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">Cancel</button>
-            <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">Save</button>
+            <button type="button" onClick={() => setLocFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">
+              Cancel
+            </button>
+            <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">
+              Save
+            </button>
           </div>
         </form>
       </Modal>
 
-      {/* Add Event */}
       <Modal open={eventFormOpen} onClose={() => setEventFormOpen(false)}>
         <form onSubmit={handleAddEvent} className="space-y-3">
           <h3 className="text-lg font-semibold">Add Event</h3>
           <input name="title" placeholder="Title" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
           <textarea name="desc" placeholder="Description (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
           <input name="where" placeholder="Location (text)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+
+          {/* Country + Postal */}
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div>
+              <div className="mb-1 text-xs text-neutral-400">Country</div>
+              <select name="country" defaultValue={country} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
+                {countries.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div className="mb-1 text-xs text-neutral-400">ZIP / Post code</div>
+              <input name="postal" placeholder="e.g. M1 1AE or 90210" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <div>
               <div className="mb-1 text-xs text-neutral-400">From</div>
@@ -1180,28 +1301,21 @@ export default function Page() {
           <div>
             <div className="mb-1 text-sm text-neutral-300">Event photo (optional)</div>
             <input type="file" accept="image/*" onChange={evImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-            {evImg && (
-              <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={evImg} alt="" className="mt-2 rounded-md border border-neutral-800" />
-                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-                  <span className="truncate">{evImgName}</span>
-                  <button type="button" onClick={evImgClear} className="text-neutral-300 hover:underline">Remove</button>
-                </div>
-              </div>
-            )}
           </div>
 
           <input name="price" placeholder="Price (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
           <input name="link" placeholder="Ticket / Info link (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setEventFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">Cancel</button>
-            <button type="submit" className="rounded-md border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-purple-200 hover:bg-purple-500/20">Save</button>
+            <button type="button" onClick={() => setEventFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">
+              Cancel
+            </button>
+            <button type="submit" className="rounded-md border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-purple-200 hover:bg-purple-500/20">
+              Save
+            </button>
           </div>
         </form>
       </Modal>
 
-      {/* Add Listing */}
       <Modal open={listingFormOpen} onClose={() => setListingFormOpen(false)}>
         <form onSubmit={handleAddListing} className="space-y-3">
           <h3 className="text-lg font-semibold">Add Listing</h3>
@@ -1216,30 +1330,41 @@ export default function Page() {
             <input name="where" placeholder="Location (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
           </div>
 
+          {/* Country + Postal */}
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div>
+              <div className="mb-1 text-xs text-neutral-400">Country</div>
+              <select name="country" defaultValue={country} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
+                {countries.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div className="mb-1 text-xs text-neutral-400">ZIP / Post code</div>
+              <input name="postal" placeholder="e.g. M1 1AE or 90210" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            </div>
+          </div>
+
           <div>
             <div className="mb-1 text-sm text-neutral-300">Photos (optional)</div>
             <input type="file" accept="image/*" onChange={mkImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-            {mkImg && (
-              <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={mkImg} className="mt-2 rounded-md border border-neutral-800" alt="" />
-                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-                  <span className="truncate">{mkImgName}</span>
-                  <button type="button" onClick={mkImgClear} className="text-neutral-300 hover:underline">Remove</button>
-                </div>
-              </div>
-            )}
           </div>
 
           <input name="contact" placeholder="Contact or link" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setListingFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">Cancel</button>
-            <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">Save</button>
+            <button type="button" onClick={() => setListingFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">
+              Cancel
+            </button>
+            <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">
+              Save
+            </button>
           </div>
         </form>
       </Modal>
 
-      {/* Add Collaboration */}
       <Modal open={collabFormOpen} onClose={() => setCollabFormOpen(false)}>
         <form onSubmit={handleAddCollab} className="space-y-3">
           <h3 className="text-lg font-semibold">Add Collaboration</h3>
@@ -1250,30 +1375,50 @@ export default function Page() {
           <input name="price" placeholder="Price (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
           <input name="contact" placeholder="Contact or link" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
 
+          {/* Country + Postal */}
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div>
+              <div className="mb-1 text-xs text-neutral-400">Country</div>
+              <select name="country" defaultValue={country} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
+                {countries.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div className="mb-1 text-xs text-neutral-400">ZIP / Post code</div>
+              <input name="postal" placeholder="e.g. M1 1AE or 90210" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            </div>
+          </div>
+
           <div>
             <div className="mb-1 text-sm text-neutral-300">Photo (optional)</div>
             <input type="file" accept="image/*" onChange={cbImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-            {cbImg && (
-              <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={cbImg} alt="" className="mt-2 rounded-md border border-neutral-800" />
-                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-                  <span className="truncate">{cbImgName}</span>
-                  <button type="button" onClick={cbImgClear} className="text-neutral-300 hover:underline">Remove</button>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setCollabFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">Cancel</button>
-            <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">Save</button>
+            <button type="button" onClick={() => setCollabFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">
+              Cancel
+            </button>
+            <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">
+              Save
+            </button>
           </div>
         </form>
       </Modal>
 
-      {/* Comment dialog (universal) */}
-      <Modal open={commentOpen} onClose={() => { setCommentOpen(false); setCommentText(''); setCommentTags([]); cImgClear(); }}>
+      {/* Comment dialog */}
+      <Modal
+        open={commentOpen}
+        onClose={() => {
+          setCommentOpen(false);
+          setCommentText('');
+          setCommentTags([]);
+          cImgClear();
+        }}
+      >
         <div className="space-y-3">
           <h3 className="text-lg font-semibold">Add Comment</h3>
           <textarea
@@ -1283,39 +1428,21 @@ export default function Page() {
             className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
           />
           <div>
-           {/* Attach photo (optional) */}
-<div>
-  <div className="mb-1 text-sm text-neutral-300">Attach photo (optional)</div>
-  <input
-    type="file"
-    accept="image/*"
-    onChange={cImgChange}
-    className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-  />
-  {cImg && (
-    <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={cImg}
-        alt="preview"
-        className="max-h-56 w-auto rounded-md border border-neutral-800"
-      />
-      <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-        <span className="truncate">{cImgName}</span>
-        <button
-          type="button"
-          onClick={cImgClear}
-          className="text-neutral-300 hover:underline"
-        >
-          Remove
-        </button>
-      </div>
-    </div>
-  )}
-  </div>
-</div> 
+            <div className="mb-1 text-sm text-neutral-300">Attach photo (optional)</div>
+            <input type="file" accept="image/*" onChange={cImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            {cImg && (
+              <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
+                <img src={cImg} alt="preview" className="max-h-56 w-auto rounded-md border border-neutral-800" />
+                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
+                  <span className="truncate">{cImgName}</span>
+                  <button type="button" onClick={cImgClear} className="text-neutral-300 hover:underline">
+                    Remove
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
-          {/* Tag friends (optional) */}
           <div>
             <div className="text-sm text-neutral-300 mb-1">Tag friends (optional)</div>
             <div className="flex flex-wrap gap-2">
@@ -1326,18 +1453,12 @@ export default function Page() {
                   onClick={() =>
                     setCommentTags((prev) => (prev.includes(u.id) ? prev.filter((x) => x !== u.id) : [...prev, u.id]))
                   }
-                  className={`rounded-full border px-3 py-1 text-sm ${
-                    commentTags.includes(u.id)
-                      ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
-                      : 'border-neutral-700 text-neutral-300'
-                  }`}
+                  className={`rounded-full border px-3 py-1 text-sm ${commentTags.includes(u.id) ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-neutral-700 text-neutral-300'}`}
                 >
                   {u.name}
                 </button>
               ))}
-              {Object.values(usersById).length === 0 && (
-                <span className="text-xs text-neutral-600">No users yet.</span>
-              )}
+              {Object.values(usersById).length === 0 && <span className="text-xs text-neutral-600">No users yet.</span>}
             </div>
           </div>
 
@@ -1363,56 +1484,7 @@ export default function Page() {
           </div>
         </div>
       </Modal>
-
-      {/* Edit Profile / Avatar Modal */}
-      <Modal open={profileModalOpen} onClose={() => setProfileModalOpen(false)}>
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold">Edit Profile</h3>
-          <div className="flex items-center gap-3">
-            {/* Avatar preview */}
-            <div className="h-16 w-16 rounded-full overflow-hidden border border-neutral-700">
-              {avatarPreview || currentUser.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={avatarPreview || currentUser.avatarUrl}
-                  alt="avatar"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-neutral-600">No photo</div>
-              )}
-            </div>
-
-            <input
-              type="file"
-              accept="image/*"
-              onChange={avatarChange}
-              className="flex-1 rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => setProfileModalOpen(false)}
-              className="rounded-md border border-neutral-700 px-3 py-1.5"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={saveAvatar}
-              disabled={!avatarPreview}
-              className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-50"
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      </Modal>
     </main>
   );
 }
 
-
-
-
-                 

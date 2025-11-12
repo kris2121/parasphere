@@ -1,85 +1,149 @@
 'use client';
 
-import { Dispatch, SetStateAction } from 'react';
+import React from 'react';
+import {
+  Home,
+  Ghost,
+  Orbit,
+  PawPrint,
+  CalendarClock,
+  Store,
+  Handshake,
+} from 'lucide-react';
+
+type TabKey =
+  | 'home'
+  | 'hauntings'
+  | 'ufos'
+  | 'cryptids'
+  | 'events'
+  | 'marketplace'
+  | 'collaboration'
+  | 'profile';
 
 type Props = {
-  /** current search text */
   query: string;
-  /** state setter from useState — pass setSearchQuery here */
-  setQuery: Dispatch<SetStateAction<string>>;
-  /** current active tab id (e.g. 'home' | 'hauntings' | 'ufos' | 'cryptids' | 'events' | 'marketplace' | 'collaboration' | 'profile') */
-  activeTab: string;
-  /** called when a tab is selected */
-  onTabChange: (tab: string) => void;
+  setQuery: (v: string) => void;
+  activeTab: TabKey;
+  onTabChange: (k: TabKey) => void;
+
+  // for profile avatar/initials
+  currentUser?: {
+    name?: string;
+    avatarUrl?: string;
+  };
 };
 
-const TABS: { id: string; label: string }[] = [
-  { id: 'home',          label: 'Home' },       // renamed from All → Home
-  { id: 'hauntings',     label: 'Hauntings' },
-  { id: 'ufos',          label: 'UFOs' },
-  { id: 'cryptids',      label: 'Cryptids' },
-  { id: 'events',        label: 'Events' },
-  { id: 'marketplace',   label: 'Marketplace' },
-  { id: 'collaboration', label: 'Collab' },
-  { id: 'profile',       label: 'Profile' },    // sits at the end
+const TABS: Array<{
+  key: TabKey;
+  label: string;
+  color: string; // tailwind text color
+  icon?: React.ComponentType<{ size?: number; className?: string }>;
+}> = [
+  { key: 'home',          label: 'Home',          color: 'text-cyan-300',    icon: Home },
+  { key: 'hauntings',     label: 'Hauntings',     color: 'text-white',       icon: Ghost },
+  { key: 'ufos',          label: 'UFOs',          color: 'text-green-300',   icon: Orbit },
+  { key: 'cryptids',      label: 'Cryptids',      color: 'text-orange-300',  icon: PawPrint },
+  { key: 'events',        label: 'Events',        color: 'text-purple-300',  icon: CalendarClock },
+  { key: 'marketplace',   label: 'Marketplace',   color: 'text-blue-300',    icon: Store },
+  { key: 'collaboration', label: 'Collaboration', color: 'text-neutral-300', icon: Handshake },
+  // 'profile' handled specially at render time (avatar/USER)
+  { key: 'profile',       label: 'Profile',       color: 'text-red-300' },
 ];
 
-const COLORS: Record<
-  string,
-  { text: string; border: string; hover: string; activeBg: string }
-> = {
-  home:          { text: 'text-cyan-300',    border: 'border-cyan-500',    hover: 'hover:bg-cyan-500/10',    activeBg: 'bg-cyan-500/10' },
-  hauntings:     { text: 'text-white',       border: 'border-white/60',     hover: 'hover:bg-white/10',       activeBg: 'bg-white/10' },
-  ufos:          { text: 'text-green-300',   border: 'border-green-500',    hover: 'hover:bg-green-500/10',   activeBg: 'bg-green-500/10' },
-  cryptids:      { text: 'text-orange-300',  border: 'border-orange-500',   hover: 'hover:bg-orange-500/10',  activeBg: 'bg-orange-500/10' },
-  events:        { text: 'text-purple-300',  border: 'border-purple-500',   hover: 'hover:bg-purple-500/10',  activeBg: 'bg-purple-500/10' },
-  marketplace:   { text: 'text-blue-300',    border: 'border-blue-500',     hover: 'hover:bg-blue-500/10',    activeBg: 'bg-blue-500/10' },
-  collaboration: { text: 'text-neutral-300', border: 'border-neutral-600',  hover: 'hover:bg-neutral-800/50', activeBg: 'bg-neutral-800/60' },
-  profile:       { text: 'text-red-300',     border: 'border-red-500',      hover: 'hover:bg-red-500/10',     activeBg: 'bg-red-500/10' },
-};
+function cx(...a: Array<string | false | null | undefined>) {
+  return a.filter(Boolean).join(' ');
+}
 
-export default function FilterBar({ query, setQuery, activeTab, onTabChange }: Props) {
+export default function FilterBar({
+  query,
+  setQuery,
+  activeTab,
+  onTabChange,
+  currentUser,
+}: Props) {
+  const initials =
+    (currentUser?.name || 'USER')
+      .trim()
+      .split(/\s+/)
+      .map((p) => p[0]?.toUpperCase())
+      .slice(0, 2)
+      .join('') || 'USER';
+
   return (
-    <div className="w-full rounded-xl border border-neutral-800 bg-neutral-900/60 p-3">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
-        {/* Search */}
+    <div className="flex items-center gap-3">
+      {/* search */}
+      <div className="min-w-0 flex-1">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search posts & locations…"
-          className="w-full md:w-83 rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none"
-
+          placeholder="Search locations, posts, people…"
+          className="w-full rounded-md border border-neutral-800 bg-neutral-900/70 px-3 py-2 text-sm outline-none placeholder-neutral-500 focus:border-neutral-700"
+          aria-label="Search"
         />
+      </div>
 
-        {/* Pills — single line, scrollable if overflow */}
-        <div className="flex flex-nowrap items-center gap-2 md:ml-auto overflow-x-auto">
-          {TABS.map((t) => {
-            const active = t.id === activeTab;
-            const c = COLORS[t.id] ?? {
-              text: 'text-neutral-300',
-              border: 'border-neutral-700',
-              hover: 'hover:bg-neutral-800/50',
-              activeBg: 'bg-neutral-800/50',
-            };
-            const base = 'rounded-full border px-3 py-1 text-sm transition-colors whitespace-nowrap';
-            const cls = active
-              ? `${base} ${c.text} ${c.border} ${c.activeBg}`
-              : `${base} ${c.text} ${c.border} ${c.hover}`;
+      {/* tabs */}
+      <nav className="flex items-center gap-1 overflow-auto">
+        {TABS.map(({ key, label, color, icon: Icon }) => {
+          const isActive = activeTab === key;
+
+          // Special render for profile: avatar or red USER badge
+          if (key === 'profile') {
+            const hasAvatar = Boolean(currentUser?.avatarUrl);
             return (
               <button
-                key={t.id}
-                onClick={() => onTabChange(t.id)}
-                className={cls}
+                key={key}
+                type="button"
+                onClick={() => onTabChange(key)}
+                title={label}
+                aria-label={label}
+                className={cx(
+                  'relative inline-flex h-9 w-9 items-center justify-center rounded-full border',
+                  isActive ? 'border-neutral-600 bg-neutral-900' : 'border-neutral-800 hover:bg-neutral-900/50'
+                )}
               >
-                {t.label}
+                {hasAvatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={currentUser!.avatarUrl!}
+                    alt="Profile"
+                    className="h-8 w-8 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600/20 text-[10px] font-semibold uppercase tracking-wide text-red-300">
+                    {initials || 'USER'}
+                  </div>
+                )}
+                <span className="sr-only">{label}</span>
               </button>
             );
-          })}
-        </div>
-      </div>
+          }
+
+          // Normal icon tabs
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onTabChange(key)}
+              title={label}
+              aria-label={label}
+              className={cx(
+                'inline-flex h-9 w-9 items-center justify-center rounded-full border',
+                isActive ? 'border-neutral-600 bg-neutral-900' : 'border-neutral-800 hover:bg-neutral-900/50'
+              )}
+            >
+              {Icon ? <Icon size={18} className={color} /> : <span className={color}>•</span>}
+              <span className="sr-only">{label}</span>
+            </button>
+          );
+        })}
+      </nav>
     </div>
   );
 }
+
+
 
 
 

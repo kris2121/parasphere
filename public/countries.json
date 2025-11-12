@@ -1,0 +1,33 @@
+[
+  {"code":"US","name":"United States","region":"Americas"},
+  {"code":"GB","name":"United Kingdom","region":"Europe"},
+  {"code":"CA","name":"Canada","region":"Americas"},
+  {"code":"AU","name":"Australia","region":"Oceania"},
+  {"code":"NZ","name":"New Zealand","region":"Oceania"},
+  {"code":"IE","name":"Ireland","region":"Europe"},
+
+  {"code":"DE","name":"Germany","region":"Europe"},
+  {"code":"FR","name":"France","region":"Europe"},
+  {"code":"IT","name":"Italy","region":"Europe"},
+  {"code":"ES","name":"Spain","region":"Europe"},
+  {"code":"PL","name":"Poland","region":"Europe"},
+  {"code":"NL","name":"Netherlands","region":"Europe"},
+  {"code":"SE","name":"Sweden","region":"Europe"},
+  {"code":"NO","name":"Norway","region":"Europe"},
+  {"code":"FI","name":"Finland","region":"Europe"},
+  {"code":"PT","name":"Portugal","region":"Europe"},
+
+  {"code":"MX","name":"Mexico","region":"Americas"},
+  {"code":"BR","name":"Brazil","region":"Americas"},
+  {"code":"AR","name":"Argentina","region":"Americas"},
+
+  {"code":"JP","name":"Japan","region":"Asia"},
+  {"code":"IN","name":"India","region":"Asia"},
+  {"code":"PH","name":"Philippines","region":"Asia"},
+
+  {"code":"ZA","name":"South Africa","region":"Africa"},
+  {"code":"EG","name":"Egypt","region":"Africa"},
+  {"code":"AE","name":"United Arab Emirates","region":"Middle East"},
+
+  {"code":"EU","name":"Europe (multi-country)","region":"Region"}
+]
