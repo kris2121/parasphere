@@ -1,7 +1,22 @@
 'use client';
 
 import PostCard from './PostCard';
-import type { DemoPost } from '@/types'; // keep your existing import(s)
+
+// Inline DemoPost type to avoid '@/types' import
+export type DemoPost = {
+  id: string;
+  type: 'Post • Haunting' | 'Post • UFO' | 'Post • Cryptid' | 'Friend • Post';
+  title: string;
+  desc: string;
+  locationId?: string;
+  imageUrl?: string;
+  linkUrl?: string;
+  authorId: string;
+  authorName: string;
+  tagUserIds?: string[];
+  tagLocationIds?: string[];
+  createdAt: number;
+};
 
 type Props = {
   posts: DemoPost[];
@@ -27,4 +42,5 @@ export default function PostsFeed({ posts, currentUserId, onViewOnMap }: Props) 
     </div>
   );
 }
+
 
