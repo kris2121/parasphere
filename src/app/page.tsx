@@ -243,13 +243,16 @@ export default function Home() {
 
   /* ------------ TAB / FILTER HELPERS ------------ */
   function handleSelectTab(next: string) {
-    setTab(next);
-    setSelectedUserId(null);
-    setSelectedLocationId(null);
+  if (next === "profile") {
+    // Open your own profile drawer without changing the feed/tab
+    openUser(currentUser.id);
+    return;
   }
-  function goHome() {
-    handleSelectTab("home");
-  }
+  setTab(next);
+  setSelectedUserId(null);
+  setSelectedLocationId(null);
+}
+
 
   function allowedTypesForTab(t: string): Array<LocationData["type"]> | null {
     if (t === "hauntings") return ["HAUNTING"];
@@ -742,35 +745,36 @@ export default function Home() {
 
           <MapActions onAddLocation={openAddLocation} />
 
-          {/* Right pop-out drawers OVER the map (they can scroll independently) */}
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-50 flex items-start justify-end p-3">
-            <div className="pointer-events-auto flex max-h-full flex-col gap-3 overflow-y-auto">
-              <LocationDrawer
-                open={drawerOpen}
-                location={drawerLoc}
-                postsForLocation={posts.filter((p) => p.locationId === drawerLoc?.id).sort((a, b) => b.createdAt - a.createdAt)}
-                locationStars={locationStars}
-                onGiveLocationStar={giveLocationStar}
-                onClickAuthor={(uid) => openUser(uid)}
-                onClickLocationTitle={() => drawerLoc && setSelectedLocationId(drawerLoc.id)}
-                onFollowLocation={(locId) => toggleFollowLocation(locId)}
-                isFollowed={drawerLoc ? followedLocations.includes(drawerLoc.id) : false}
-                onClose={() => setDrawerOpen(false)}
-              />
+{/* Drawer overlay centered INSIDE the map area */}
+<div className="pointer-events-none absolute inset-0 z-50 flex items-start justify-center p-3 md:p-4">
+  {/* This wrapper limits the drawer width so it never exceeds the map */}
+  <div className="pointer-events-auto w-full max-w-xl">
+   <LocationDrawer
+  variant="center"
+  open={drawerOpen}
+  location={drawerLoc}
+  onGiveLocationStar={giveLocationStar}
+  onClickLocationTitle={() => drawerLoc && setSelectedLocationId(drawerLoc.id)}
+  onFollowLocation={(locId) => toggleFollowLocation(locId)}
+  isFollowed={drawerLoc ? followedLocations.includes(drawerLoc.id) : false}
+  onClose={() => setDrawerOpen(false)}
+/>
 
-              <UserDrawer
-                open={userDrawerOpen}
-                user={drawerUser}
-                stars={drawerUser ? userStars[drawerUser.id] ?? 0 : 0}
-                onGiveStar={(uid) => giveUserStar(uid)}
-                onFollow={(uid) => toggleFollowUser(uid)}
-                onMessage={(uid) => alert(`(message) ${uid}`)}
-                onBlock={(uid) => alert(`(block) ${uid}`)}
-                onReport={(uid) => alert(`(report) ${uid}`)}
-                onClose={() => setUserDrawerOpen(false)}
-              />
-            </div>
-          </div>
+    <UserDrawer
+      open={userDrawerOpen}
+      user={drawerUser}
+      stars={drawerUser ? userStars[drawerUser.id] ?? 0 : 0}
+      onGiveStar={(uid) => giveUserStar(uid)}
+      onFollow={(uid) => toggleFollowUser(uid)}
+      onMessage={(uid) => alert(`(message) ${uid}`)}
+      onBlock={(uid) => alert(`(block) ${uid}`)}
+      onReport={(uid) => alert(`(report) ${uid}`)}
+      onClose={() => setUserDrawerOpen(false)}
+    />
+  </div>
+</div>
+
+
         </div>
       </section>
 
