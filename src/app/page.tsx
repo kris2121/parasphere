@@ -18,6 +18,9 @@ import UserDrawer, { UserMini } from '@/components/UserDrawer';
 import MapActions from '@/components/MapActions';
 import EventsFeed, { EventsFeedEvent } from '@/components/EventsFeed';
 import MarketplaceFeed from '@/components/MarketplaceFeed';
+import CollaborationFeed from '@/components/CollaborationFeed';
+
+
 
 /* =========================== Country Scope Context =========================== */
 
@@ -950,63 +953,65 @@ function PageInner() {
             )}
           </div>
 
-          {/* POSTS */}
+                   {/* POSTS */}
           {tab === 'home' && (
             <HomeFeed
-              tab={tab}
               posts={posts}
-              filteredPosts={filteredPosts}
-              searchQuery={searchQuery}
-              selectedUserId={selectedUserId}
-              selectedLocationId={selectedLocationId}
-              setSelectedLocationId={setSelectedLocationId}
-              setSelectedUserId={setSelectedUserId}
+              comments={comments}
+              postStars={postStars}
               usersById={usersById}
               locations={locations}
-              postStars={postStars}
-              givePostStar={givePostStar}
-              comments={comments}
+              selectedUserId={selectedUserId}
+              setSelectedUserId={setSelectedUserId}
+              selectedLocationId={selectedLocationId}
+              setSelectedLocationId={setSelectedLocationId}
               canEditPost={canEditPost}
               editPost={editPost}
               deletePost={deletePost}
-              canEditComment={canEditComment}
-              deleteComment={deleteComment}
+              givePostStar={givePostStar}
+              openUser={openUser}
               openComment={openComment}
-              sortPosts={sortPosts}
+              filteredPosts={filteredPosts}
+              searchQuery={searchQuery}
             />
           )}
 
+          {/* EVENTS */}
+          {tab === 'events' && (
+            <>
+              <div className="mb-3">
+                <button
+                  onClick={() => setEventFormOpen(true)}
+                  className="rounded-md border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-sm text-purple-200 hover:bg-purple-500/20"
+                >
+                  + Add Event
+                </button>
+              </div>
 
-         {/* EVENTS */}
-{tab === 'events' && (
-  <EventsFeed
-    events={events}
-    comments={comments}
-    setComments={setComments}
-    country={country}
-    countries={countries}
-    eventStars={eventStars}
-    giveEventStar={giveEventStar}
-    setEventFormOpen={setEventFormOpen}
-  />
-)}
+              <EventsFeed
+                country={country}
+                events={events}
+                comments={comments}
+                eventStars={eventStars}
+                giveEventStar={giveEventStar}
+                openComment={openComment}
+              />
+            </>
+          )}
 
-
-         {/* MARKETPLACE */}
-{tab === 'marketplace' && (
-  <MarketplaceFeed
-    items={market}
-    comments={comments}
-    country={country}
-    marketStars={marketStars}
-    onGiveStar={giveMarketStar}
-    onOpenComment={openComment}
-    marketFilter={marketFilter}
-    setMarketFilter={setMarketFilter}
-    onOpenListingForm={() => setListingFormOpen(true)}
-  />
-)}
-
+          {/* MARKETPLACE */}
+          {tab === 'marketplace' && (
+            <MarketplaceFeed
+              country={country}
+              items={market}
+              comments={comments}
+              marketStars={marketStars}
+              giveMarketStar={giveMarketStar}
+              openComment={openComment}
+              marketFilter={marketFilter}
+              setMarketFilter={setMarketFilter}
+            />
+          )}
 
           {/* COLLABORATION */}
           {tab === 'collaboration' && (
@@ -1026,81 +1031,18 @@ function PageInner() {
                 </button>
               </div>
 
-              <div className="grid gap-4">
-                {activeCollabs
-                  .filter(byCountry<CollabItem>(country))
-                  .sort(sortCollab)
-                  .map((c) => {
-                    const cKey = `collab:${c.id}`;
-                    return (
-                      <article
-                        key={c.id}
-                        className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
-                      >
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold">{c.title}</h3>
-                          <StarBadge
-                            value={collabStars[c.id] ?? 0}
-                            onClick={() => giveCollabStar(c.id)}
-                          />
-                        </div>
-                        {c.imageUrl && (
-                          <img
-                            src={c.imageUrl}
-                            alt=""
-                            className="mt-2 rounded-md border border-neutral-800"
-                          />
-                        )}
-                        {c.description && <TranslatePost text={c.description} />}
-                        <div className="mt-2 flex flex-wrap gap-3 text-xs text-neutral-400">
-                          {c.dateISO && (
-                            <span>Date: {new Date(c.dateISO).toLocaleString()}</span>
-                          )}
-                          {c.locationText && (
-                            <span>Location: {c.locationText}</span>
-                          )}
-                          {c.countryCode && (
-                            <span>Country: {c.countryCode}</span>
-                          )}
-                          {c.postalCode && (
-                            <span>Post code: {c.postalCode}</span>
-                          )}
-                          {c.priceText && <span>Price: {c.priceText}</span>}
-                          {c.contact && (
-                            <a
-                              className="text-cyan-300 hover:underline"
-                              href={c.contact}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Contact / Link
-                            </a>
-                          )}
-                        </div>
-
-                        <div className="mt-3 flex items-center gap-3">
-                          <button
-                            className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900"
-                            onClick={() => openComment(cKey)}
-                          >
-                            Comment
-                          </button>
-                          <div className="text-xs text-neutral-500">
-                            {(comments[cKey]?.length ?? 0)} comments
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                {activeCollabs.filter(byCountry<CollabItem>(country)).length === 0 && (
-                  <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">
-                    No collaboration posts yet.
-                  </div>
-                )}
-              </div>
+              <CollaborationFeed
+                country={country}
+                items={collabs}
+                comments={comments}
+                collabStars={collabStars}
+                giveCollabStar={giveCollabStar}
+                openComment={openComment}
+              />
             </>
           )}
-        </div>
+
+      </div>
       </section>
 
       {/* MODALS */}
