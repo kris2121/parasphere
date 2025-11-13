@@ -1,11 +1,20 @@
 'use client';
 
-import React, { FormEvent, useEffect, useMemo, useRef, useState, createContext, useContext } from 'react';
+import React, {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  createContext,
+  useContext,
+} from 'react';
+import ParaverseTopBar, { TabKey } from '@/components/ParaverseTopBar';
+import ParaverseHeader from '@/components/ParaverseHeader';
 import LiveMap, { LocationData, LiveMapHandle } from '@/components/LiveMap';
 import LocationDrawer from '@/components/LocationDrawer';
 import UserDrawer, { UserMini } from '@/components/UserDrawer';
 import MapActions from '@/components/MapActions';
-import FilterBar from '@/components/FilterBar';
 
 /* =========================== Country Scope Context =========================== */
 
@@ -52,7 +61,9 @@ function useScope() {
 /* ============================== Country helpers ============================== */
 
 function useCountries() {
-  const [countries, setCountries] = useState<Array<{ code: string; name: string; region?: string }>>([]);
+  const [countries, setCountries] = useState<
+    Array<{ code: string; name: string; region?: string }>
+  >([]);
   useEffect(() => {
     let ok = true;
     fetch('/countries.json')
@@ -88,7 +99,9 @@ function CountrySelect() {
   const options = useMemo(() => {
     if (!countries.length) return [];
     const eu = countries.filter((c) => c.code.toUpperCase() === 'EU');
-    const rest = countries.filter((c) => c.code.toUpperCase() !== 'EU').sort((a, b) => a.name.localeCompare(b.name));
+    const rest = countries
+      .filter((c) => c.code.toUpperCase() !== 'EU')
+      .sort((a, b) => a.name.localeCompare(b.name));
     return [...eu, ...rest];
   }, [countries]);
 
@@ -96,7 +109,9 @@ function CountrySelect() {
     const trimmed = (input || '').trim();
     if (!trimmed) return country;
 
-    const exactCode = options.find((o) => o.code.toUpperCase() === trimmed.toUpperCase());
+    const exactCode = options.find(
+      (o) => o.code.toUpperCase() === trimmed.toUpperCase(),
+    );
     if (exactCode) return exactCode.code;
 
     const matchParen = trimmed.match(/\(([A-Za-z]{2,3})\)\s*$/);
@@ -105,7 +120,9 @@ function CountrySelect() {
       if (options.some((o) => o.code.toUpperCase() === c)) return c;
     }
 
-    const byName = options.find((o) => o.name.toLowerCase() === trimmed.toLowerCase());
+    const byName = options.find(
+      (o) => o.name.toLowerCase() === trimmed.toLowerCase(),
+    );
     if (byName) return byName.code;
 
     return country;
@@ -122,7 +139,7 @@ function CountrySelect() {
       <span className="opacity-70">Show posts from</span>
       <input
         list="countries"
-        className="bg-transparent outline-none text-neutral-100 placeholder-neutral-400"
+        className="bg-transparent text-neutral-100 outline-none placeholder-neutral-400"
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onBlur={() => setCountry(normalizeToCode(inputValue))}
@@ -168,7 +185,8 @@ function StarBadge({ value, onClick }: { value: number; onClick?: () => void }) 
       className="inline-flex items-center gap-1 rounded-full border border-yellow-600/60 bg-yellow-500/10 px-2 py-0.5 text-xs text-yellow-200 hover:bg-yellow-500/20"
       title="Give a star"
     >
-      <span>★</span> <span className="min-w-[1.2rem] text-center">{value}</span>
+      <span>★</span>{' '}
+      <span className="min-w-[1.2rem] text-center">{value}</span>
     </button>
   );
 }
@@ -186,7 +204,9 @@ function Chip({
     <button
       onClick={onClick}
       className={`rounded-full border px-3 py-1 text-sm ${
-        active ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-neutral-700 text-neutral-300 hover:border-neutral-500'
+        active
+          ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+          : 'border-neutral-700 text-neutral-300 hover:border-neutral-500'
       }`}
     >
       {children}
@@ -209,7 +229,9 @@ function Modal({
   return (
     <>
       <div className="fixed inset-0 z-[90] bg-black/60" onClick={onClose} />
-      <div className={`fixed left-1/2 top-1/2 z-[91] -translate-x-1/2 -translate-y-1/2 w-[92vw] ${maxW} rounded-xl border border-neutral-800 bg-neutral-950 p-4`}>
+      <div
+        className={`fixed left-1/2 top-1/2 z-[91] w-[92vw] -translate-x-1/2 -translate-y-1/2 ${maxW} rounded-xl border border-neutral-800 bg-neutral-950 p-4`}
+      >
         {children}
       </div>
     </>
@@ -228,7 +250,7 @@ function SectionDisclaimer({ children }: { children: React.ReactNode }) {
 
 type DemoPost = {
   id: string;
-  type: 'Post • Haunting' | 'Post • UFO' | 'Post • Cryptid' | 'Friend • Post';
+  type: 'Post';
   title: string;
   desc: string;
   locationId?: string;
@@ -252,7 +274,7 @@ type MarketplaceItem = {
   createdAt: number;
   postedBy: { id: string; name: string };
   countryCode?: string;
-  postalCode?: string;  // added
+  postalCode?: string;
 };
 
 type EventItem = {
@@ -268,7 +290,7 @@ type EventItem = {
   createdAt: number;
   postedBy: { id: string; name: string };
   countryCode?: string;
-  postalCode?: string;  // added
+  postalCode?: string;
 };
 
 type CollabItem = {
@@ -283,7 +305,7 @@ type CollabItem = {
   createdAt: number;
   postedBy: { id: string; name: string };
   countryCode?: string;
-  postalCode?: string;  // added
+  postalCode?: string;
 };
 
 /* =============================== Image preview ============================== */
@@ -308,7 +330,12 @@ function useImagePreview() {
     setUrl(undefined);
     setName(undefined);
   }
-  useEffect(() => () => { if (url) URL.revokeObjectURL(url); }, [url]);
+  useEffect(
+    () => () => {
+      if (url) URL.revokeObjectURL(url);
+    },
+    [url],
+  );
 
   return { url, name, onChange, clear };
 }
@@ -324,7 +351,11 @@ export default function Page() {
 }
 
 function PageInner() {
-  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; avatarUrl?: string }>({
+  const [currentUser, setCurrentUser] = useState<{
+    id: string;
+    name: string;
+    avatarUrl?: string;
+  }>({
     id: 'u_current',
     name: 'You',
     avatarUrl: undefined,
@@ -350,11 +381,17 @@ function PageInner() {
   const [eventStars, setEventStars] = useState<Record<string, number>>({});
   const [marketStars, setMarketStars] = useState<Record<string, number>>({});
   const [collabStars, setCollabStars] = useState<Record<string, number>>({});
-  const inc = (setter: (f: (p: any) => any) => void, id: string) =>
-    setter((prev: Record<string, number>) => ({ ...prev, [id]: (prev[id] ?? 0) + 1 }));
 
-  const giveUserStar = (userId: string) => setUserStars((prev) => ({ ...prev, [userId]: (prev[userId] ?? 0) + 1 }));
-  const giveLocationStar = (locId: string) => inc(setLocationStars as any, locId);
+  const inc = (setter: (f: (p: any) => any) => void, id: string) =>
+    setter((prev: Record<string, number>) => ({
+      ...prev,
+      [id]: (prev[id] ?? 0) + 1,
+    }));
+
+  const giveUserStar = (userId: string) =>
+    setUserStars((prev) => ({ ...prev, [userId]: (prev[userId] ?? 0) + 1 }));
+  const giveLocationStar = (locId: string) =>
+    inc(setLocationStars as any, locId);
   const givePostStar = (id: string) => inc(setPostStars, id);
   const giveEventStar = (id: string) => inc(setEventStars, id);
   const giveMarketStar = (id: string) => inc(setMarketStars, id);
@@ -365,7 +402,9 @@ function PageInner() {
   const [events, setEvents] = useState<EventItem[]>([]);
   const [market, setMarket] = useState<MarketplaceItem[]>([]);
   const [collabs, setCollabs] = useState<CollabItem[]>([]);
-  const [marketFilter, setMarketFilter] = useState<'All' | 'Product' | 'Service'>('All');
+  const [marketFilter, setMarketFilter] = useState<'All' | 'Product' | 'Service'>(
+    'All',
+  );
 
   const [comments, setComments] = useState<Record<string, any[]>>({});
   function addComment(key: string, c: any) {
@@ -375,14 +414,22 @@ function PageInner() {
     return c.authorId === currentUser.id;
   }
   function deleteComment(key: string, id: string) {
-    setComments((prev) => ({ ...prev, [key]: (prev[key] ?? []).filter((x: any) => x.id !== id) }));
+    setComments((prev) => ({
+      ...prev,
+      [key]: (prev[key] ?? []).filter((x: any) => x.id !== id),
+    }));
   }
 
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentKey, setCommentKey] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [commentTags, setCommentTags] = useState<string[]>([]);
-  const { url: cImg, name: cImgName, onChange: cImgChange, clear: cImgClear } = useImagePreview();
+  const {
+    url: cImg,
+    name: cImgName,
+    onChange: cImgChange,
+    clear: cImgClear,
+  } = useImagePreview();
   function openComment(forKey: string) {
     setCommentKey(forKey);
     setCommentOpen(true);
@@ -409,7 +456,9 @@ function PageInner() {
   const [followedLocations, setFollowedLocations] = useState<string[]>([]);
   useEffect(() => {
     setFollowedUsers(JSON.parse(localStorage.getItem('ps_follow_users') || '[]'));
-    setFollowedLocations(JSON.parse(localStorage.getItem('ps_follow_locs') || '[]'));
+    setFollowedLocations(
+      JSON.parse(localStorage.getItem('ps_follow_locs') || '[]'),
+    );
   }, []);
   useEffect(() => {
     localStorage.setItem('ps_follow_users', JSON.stringify(followedUsers));
@@ -419,36 +468,69 @@ function PageInner() {
   }, [followedLocations]);
 
   const toggleFollowUser = (userId: string) =>
-    setFollowedUsers((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]));
+    setFollowedUsers((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
+    );
   const toggleFollowLocation = (locId: string) =>
-    setFollowedLocations((prev) => (prev.includes(locId) ? prev.filter((id) => id !== id) : [...prev, locId]));
+    setFollowedLocations((prev) =>
+      prev.includes(locId) ? prev.filter((id) => id !== locId) : [...prev, locId],
+    );
+
+  // HOME FEED FILTER (fav locations, fav users, all)
+  const [feedFilter, setFeedFilter] = useState<'favLocations' | 'favUsers' | 'all'>(
+    'all',
+  );
+
+  const filteredPosts = useMemo(() => {
+    switch (feedFilter) {
+      case 'favLocations':
+        return posts.filter(
+          (p) => p.locationId && followedLocations.includes(p.locationId),
+        );
+      case 'favUsers':
+        return posts.filter((p) => followedUsers.includes(p.authorId));
+      case 'all':
+      default:
+        return posts;
+    }
+  }, [feedFilter, posts, followedLocations, followedUsers]);
 
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
 
-  function handleSelectTab(next: string) {
-    if (next === 'profile') {
-      openUser(currentUser.id);
-      return;
-    }
-    setTab(next);
-    setSelectedUserId(null);
-    setSelectedLocationId(null);
+  function handleSelectTab(next: TabKey) {
+  if (next === 'profile') {
+    openUser(currentUser.id);
+    return;
+  }
+  setTab(next);
+  setSelectedUserId(null);
+  setSelectedLocationId(null);
+}
+
+
+  // Map visibility:
+  // - home / marketplace / profile => HAUNTING
+  // - events                      => EVENT
+  // - collaboration               => COLLAB
+  function allowedTypesForTab(t: string): Array<LocationData['type']> | null {
+    if (t === 'events') return ['EVENT'];
+    if (t === 'collaboration') return ['COLLAB'];
+    return ['HAUNTING'];
   }
 
-  function allowedTypesForTab(t: string): Array<LocationData['type']> | null {
-    if (t === 'hauntings') return ['HAUNTING'];
-    if (t === 'ufos') return ['UFO'];
-    if (t === 'cryptids') return ['CRYPTID'];
-    if (t === 'events') return ['EVENT'];
-    return null;
-  }
-  const allowed = allowedTypesForTab(tab);
-  const matchesQuery = (s?: string) => !searchQuery || (s ?? '').toLowerCase().includes(searchQuery.toLowerCase());
+  const matchesQuery = (s?: string) =>
+    !searchQuery || (s ?? '').toLowerCase().includes(searchQuery.toLowerCase());
+
   const filteredLocations = useMemo(() => {
-    const byTab = allowed ? locations.filter((l) => allowed.includes(l.type)) : locations;
-    return byTab.filter((l) => matchesQuery(l.title) || matchesQuery(l.summary));
-  }, [allowed, locations, searchQuery]);
+    const allowed = allowedTypesForTab(tab);
+    const byType = allowed
+      ? locations.filter((l) => allowed.includes(l.type))
+      : locations;
+    return byType.filter(
+      (l) => matchesQuery(l.title) || matchesQuery(l.summary),
+    );
+  }, [locations, searchQuery, tab]);
 
   function openFromPin(loc: LocationData) {
     setDrawerLoc(loc);
@@ -465,17 +547,20 @@ function PageInner() {
     setTab('home');
   }
 
-  const { url: postImg, onChange: postImgChange, clear: postImgClear } = useImagePreview();
+  const { url: postImg, onChange: postImgChange, clear: postImgClear } =
+    useImagePreview();
   const [postFormOpen, setPostFormOpen] = useState(false);
   const [postTagUsers, setPostTagUsers] = useState<string[]>([]);
   const [selectedLocId, setSelectedLocId] = useState<string>('');
   const [locQuery, setLocQuery] = useState('');
 
   const locationOptions = useMemo(() => {
-    const base = allowed ? locations.filter((l) => allowed!.includes(l.type)) : locations;
+    const base = locations;
     const q = locQuery.trim().toLowerCase();
-    return q ? base.filter((l) => l.title.toLowerCase().includes(q)).slice(0, 20) : base.slice(0, 12);
-  }, [allowed, locations, locQuery]);
+    return q
+      ? base.filter((l) => l.title.toLowerCase().includes(q)).slice(0, 20)
+      : base.slice(0, 12);
+  }, [locations, locQuery]);
 
   function toggle(arr: string[], id: string, setter: (v: string[]) => void) {
     setter(arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
@@ -490,19 +575,9 @@ function PageInner() {
     const desc = String(fd.get('desc') || '').trim();
     const link = String(fd.get('link') || '').trim() || undefined;
 
-    const loc = locations.find((l) => l.id === selectedLocId);
-    const typeFromLoc =
-      loc?.type === 'UFO'
-        ? 'Post • UFO'
-        : loc?.type === 'CRYPTID'
-        ? 'Post • Cryptid'
-        : loc?.type === 'EVENT'
-        ? 'Friend • Post'
-        : 'Post • Haunting';
-
     const p: DemoPost = {
       id: crypto.randomUUID(),
-      type: typeFromLoc,
+      type: 'Post',
       title,
       desc,
       locationId: selectedLocId,
@@ -538,7 +613,8 @@ function PageInner() {
 
   const [locFormOpen, setLocFormOpen] = useState(false);
   const [newLoc, setNewLoc] = useState<{ lng: number; lat: number } | null>(null);
-  const { url: locImg, onChange: locImgChange, clear: locImgClear } = useImagePreview();
+  const { url: locImg, onChange: locImgChange, clear: locImgClear } =
+    useImagePreview();
 
   function openAddLocation() {
     const center = mapRef.current?.getCenter();
@@ -571,7 +647,8 @@ function PageInner() {
   const countries = useCountries();
 
   const [eventFormOpen, setEventFormOpen] = useState(false);
-  const { url: evImg, onChange: evImgChange, clear: evImgClear } = useImagePreview();
+  const { url: evImg, onChange: evImgChange, clear: evImgClear } =
+    useImagePreview();
   function handleAddEvent(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -602,7 +679,8 @@ function PageInner() {
   }
 
   const [listingFormOpen, setListingFormOpen] = useState(false);
-  const { url: mkImg, onChange: mkImgChange, clear: mkImgClear } = useImagePreview();
+  const { url: mkImg, onChange: mkImgChange, clear: mkImgClear } =
+    useImagePreview();
   function handleAddListing(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -632,7 +710,8 @@ function PageInner() {
   }
 
   const [collabFormOpen, setCollabFormOpen] = useState(false);
-  const { url: cbImg, onChange: cbImgChange, clear: cbImgClear } = useImagePreview();
+  const { url: cbImg, onChange: cbImgChange, clear: cbImgClear } =
+    useImagePreview();
   function handleAddCollab(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -661,48 +740,56 @@ function PageInner() {
     cbImgClear();
   }
 
+  // Auto-prune expired events & collabs (based on end/date)
+  const now = Date.now();
+
+  const activeEvents = useMemo(
+    () =>
+      events.filter((ev) => {
+        const start = ev.startISO ? new Date(ev.startISO).getTime() : 0;
+        const end = ev.endISO ? new Date(ev.endISO).getTime() : start;
+        return end >= now;
+      }),
+    [events, now],
+  );
+
+  const activeCollabs = useMemo(
+    () =>
+      collabs.filter((c) => {
+        if (!c.dateISO) return true;
+        const d = new Date(c.dateISO).getTime();
+        return d >= now;
+      }),
+    [collabs, now],
+  );
+
   // sorters
   const sortPosts = (a: DemoPost, b: DemoPost) => {
-    if (tab === 'home') return b.createdAt - a.createdAt;
-    if (tab === 'hauntings' || tab === 'ufos' || tab === 'cryptids') {
-      const sa = postStars[a.id] ?? 0;
-      const sb = postStars[b.id] ?? 0;
-      if (sb !== sa) return sb - sa;
-      return b.createdAt - a.createdAt;
-    }
-    return b.createdAt - a.createdAt;
-  };
-  const sortEvents = (a: EventItem, b: EventItem) => {
-    const sa = eventStars[a.id] ?? 0, sb = eventStars[b.id] ?? 0;
-    if (sb !== sa) return sb - sa;
-    return a.startISO.localeCompare(b.startISO);
-  };
-  const sortMarket = (a: MarketplaceItem, b: MarketplaceItem) => {
-    const sa = marketStars[a.id] ?? 0, sb = marketStars[b.id] ?? 0;
+    const sa = postStars[a.id] ?? 0;
+    const sb = postStars[b.id] ?? 0;
     if (sb !== sa) return sb - sa;
     return b.createdAt - a.createdAt;
   };
+  const sortEvents = (a: EventItem, b: EventItem) =>
+    new Date(b.startISO).getTime() - new Date(a.startISO).getTime();
+  const sortMarket = (a: MarketplaceItem, b: MarketplaceItem) =>
+    b.createdAt - a.createdAt;
   const sortCollab = (a: CollabItem, b: CollabItem) => {
-    const sa = collabStars[a.id] ?? 0, sb = collabStars[b.id] ?? 0;
-    if (sb !== sa) return sb - sa;
-    return b.createdAt - a.createdAt;
+    const da = a.dateISO ? new Date(a.dateISO).getTime() : a.createdAt;
+    const db = b.dateISO ? new Date(b.dateISO).getTime() : b.createdAt;
+    return db - da;
   };
 
   return (
     <main className="flex min-h-screen flex-col bg-[#0B0C0E] text-white">
-      {/* HEADER */}
-      <header className="sticky top-0 z-40 border-b border-neutral-800/60 bg-[#0B0C0E]/80 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-4 py-2">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 shrink-0">
-              <img src="/logo-cyan.png" alt="ParaSphere Logo" className="h-10 w-10 object-contain" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <FilterBar query={searchQuery} setQuery={setSearchQuery} activeTab={tab} onTabChange={handleSelectTab} />
-            </div>
-          </div>
-        </div>
-      </header>
+<ParaverseHeader
+  tab={tab}
+  onSelectTab={handleSelectTab}
+  searchQuery={searchQuery}
+  setSearchQuery={setSearchQuery}
+  currentUser={currentUser}
+/>
+
 
       {/* MAP */}
       <section className="relative mx-auto w-full max-w-6xl px-4 pb-3 pt-3">
@@ -726,7 +813,9 @@ function PageInner() {
                 open={drawerOpen}
                 location={drawerLoc}
                 onGiveLocationStar={giveLocationStar}
-                onClickLocationTitle={() => drawerLoc && setSelectedLocationId(drawerLoc.id)}
+                onClickLocationTitle={() =>
+                  drawerLoc && setSelectedLocationId(drawerLoc.id)
+                }
                 onFollowLocation={(locId) => toggleFollowLocation(locId)}
                 isFollowed={drawerLoc ? followedLocations.includes(drawerLoc.id) : false}
                 onClose={() => setDrawerOpen(false)}
@@ -744,7 +833,11 @@ function PageInner() {
                 onSave={(next) => {
                   setUsersById((prev) => ({ ...prev, [next.id]: next }));
                   if (next.id === currentUser.id) {
-                    setCurrentUser((u) => ({ ...u, name: next.name, avatarUrl: next.avatarUrl }));
+                    setCurrentUser((u) => ({
+                      ...u,
+                      name: next.name,
+                      avatarUrl: next.avatarUrl,
+                    }));
                   }
                   setDrawerUser(next);
                 }}
@@ -762,17 +855,12 @@ function PageInner() {
           <div className="mb-4">
             <h1 className="text-2xl font-semibold">
               {selectedLocationId
-                ? locations.find((l) => l.id === selectedLocationId)?.title ?? 'Location'
+                ? locations.find((l) => l.id === selectedLocationId)?.title ??
+                  'Location'
                 : selectedUserId
                 ? `${usersById[selectedUserId]?.name ?? 'User'} — posts`
                 : tab === 'home'
-                ? 'HOME'
-                : tab === 'hauntings'
-                ? 'Hauntings'
-                : tab === 'ufos'
-                ? 'UFOs'
-                : tab === 'cryptids'
-                ? 'Cryptids'
+                ? 'Home'
                 : tab === 'events'
                 ? 'Events'
                 : tab === 'marketplace'
@@ -783,7 +871,33 @@ function PageInner() {
             </h1>
 
             {!selectedLocationId && !selectedUserId && tab === 'home' && (
-              <div className="mt-1 text-sm text-yellow-200">Now showing posts from your followed locations and friends.</div>
+              <div className="mt-1 text-sm text-yellow-200">
+                Now showing posts by stars. Filter between favourite locations, favourite
+                users, or all posts.
+              </div>
+            )}
+
+            {tab === 'home' && (
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <Chip
+                  active={feedFilter === 'all'}
+                  onClick={() => setFeedFilter('all')}
+                >
+                  All
+                </Chip>
+                <Chip
+                  active={feedFilter === 'favLocations'}
+                  onClick={() => setFeedFilter('favLocations')}
+                >
+                  Favourites • Locations
+                </Chip>
+                <Chip
+                  active={feedFilter === 'favUsers'}
+                  onClick={() => setFeedFilter('favUsers')}
+                >
+                  Favourites • Users
+                </Chip>
+              </div>
             )}
 
             {tab === 'home' && (
@@ -792,7 +906,9 @@ function PageInner() {
                   <div className="mb-1 text-xs text-neutral-400">Followed users</div>
                   <div className="flex flex-wrap gap-2">
                     {followedUsers.length === 0 && (
-                      <span className="text-xs text-neutral-500">You are not following any users yet.</span>
+                      <span className="text-xs text-neutral-500">
+                        You are not following any users yet.
+                      </span>
                     )}
                     {followedUsers.map((uid) => (
                       <Chip
@@ -809,17 +925,23 @@ function PageInner() {
                   </div>
                 </div>
                 <div>
-                  <div className="mb-1 text-xs text-neutral-400">Followed locations</div>
+                  <div className="mb-1 text-xs text-neutral-400">
+                    Followed locations
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {followedLocations.length === 0 && (
-                      <span className="text-xs text-neutral-500">You are not following any locations yet.</span>
+                      <span className="text-xs text-neutral-500">
+                        You are not following any locations yet.
+                      </span>
                     )}
                     {followedLocations.map((lid) => (
                       <Chip
                         key={lid}
                         active={selectedLocationId === lid}
                         onClick={() => {
-                          setSelectedLocationId(lid === selectedLocationId ? null : lid);
+                          setSelectedLocationId(
+                            lid === selectedLocationId ? null : lid,
+                          );
                           setSelectedUserId(null);
                         }}
                       >
@@ -831,7 +953,7 @@ function PageInner() {
               </div>
             )}
 
-            {['home', 'hauntings', 'ufos', 'cryptids'].includes(tab) && (
+            {tab === 'home' && (
               <div className="mt-3">
                 <button
                   onClick={() => setPostFormOpen(true)}
@@ -850,30 +972,39 @@ function PageInner() {
           </div>
 
           {/* POSTS */}
-          {['home', 'hauntings', 'ufos', 'cryptids'].includes(tab) && (
+          {tab === 'home' && (
             <div className="grid gap-4">
-              {posts
+              {(tab === 'home' ? filteredPosts : posts)
                 .filter(
                   (p) =>
                     (!selectedUserId || p.authorId === selectedUserId) &&
                     (!selectedLocationId || p.locationId === selectedLocationId) &&
                     (!searchQuery ||
                       p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      p.desc.toLowerCase().includes(searchQuery.toLowerCase()))
+                      p.desc.toLowerCase().includes(searchQuery.toLowerCase())),
                 )
                 .sort(sortPosts)
                 .map((p) => {
                   const cKey = `post:${p.id}`;
                   return (
-                    <article key={p.id} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+                    <article
+                      key={p.id}
+                      className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
+                    >
                       <div className="flex items-center justify-between">
                         <div className="text-xs text-neutral-400">
-                          {p.type} • by{' '}
-                          <button className="text-cyan-300 hover:underline" onClick={() => openUser(p.authorId)}>
+                          Post • by{' '}
+                          <button
+                            className="text-cyan-300 hover:underline"
+                            onClick={() => openUser(p.authorId)}
+                          >
                             {usersById[p.authorId]?.name ?? p.authorName}
                           </button>
                         </div>
-                        <StarBadge value={postStars[p.id] ?? 0} onClick={() => givePostStar(p.id)} />
+                        <StarBadge
+                          value={postStars[p.id] ?? 0}
+                          onClick={() => givePostStar(p.id)}
+                        />
                       </div>
 
                       {canEditPost(p) && (
@@ -882,7 +1013,8 @@ function PageInner() {
                             className="rounded-md border border-neutral-700 px-2 py-1 hover:bg-neutral-900"
                             onClick={() => {
                               const title = prompt('Edit title', p.title) ?? p.title;
-                              const desc = prompt('Edit description', p.desc) ?? p.desc;
+                              const desc =
+                                prompt('Edit description', p.desc) ?? p.desc;
                               editPost(p.id, { title, desc });
                             }}
                           >
@@ -902,9 +1034,20 @@ function PageInner() {
                       <h3 className="mt-1 text-lg font-semibold">{p.title}</h3>
                       <TranslatePost text={p.desc} />
 
-                      {p.imageUrl && <img src={p.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800" />}
+                      {p.imageUrl && (
+                        <img
+                          src={p.imageUrl}
+                          alt=""
+                          className="mt-2 rounded-md border border-neutral-800"
+                        />
+                      )}
                       {p.linkUrl && (
-                        <a className="mt-2 inline-block text-cyan-300 hover:underline" href={p.linkUrl} target="_blank" rel="noreferrer">
+                        <a
+                          className="mt-2 inline-block text-cyan-300 hover:underline"
+                          href={p.linkUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
                           View link
                         </a>
                       )}
@@ -919,34 +1062,58 @@ function PageInner() {
                               setTab('home');
                             }}
                           >
-                            {locations.find((l) => l.id === p.locationId)?.title ?? p.locationId}
+                            {locations.find((l) => l.id === p.locationId)?.title ??
+                              p.locationId}
                           </button>
                         </div>
                       )}
 
                       <div className="mt-3 flex items-center gap-3">
-                        <button className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900" onClick={() => openComment(cKey)}>
+                        <button
+                          className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900"
+                          onClick={() => openComment(cKey)}
+                        >
                           Comment
                         </button>
-                        <div className="text-xs text-neutral-500">{(comments[cKey]?.length ?? 0)} comments</div>
+                        <div className="text-xs text-neutral-500">
+                          {(comments[cKey]?.length ?? 0)} comments
+                        </div>
                       </div>
 
                       {comments[cKey]?.length ? (
                         <div className="mt-2 grid gap-2">
                           {comments[cKey].map((c) => (
-                            <div key={c.id} className="rounded-md border border-neutral-800 bg-neutral-950 p-2">
+                            <div
+                              key={c.id}
+                              className="rounded-md border border-neutral-800 bg-neutral-950 p-2"
+                            >
                               <div className="flex items-center justify-between text-xs text-neutral-400">
                                 <div>
-                                  by <span className="text-cyan-300">{c.authorName}</span> • {new Date(c.createdAt).toLocaleString()}
+                                  by{' '}
+                                  <span className="text-cyan-300">
+                                    {c.authorName}
+                                  </span>{' '}
+                                  • {new Date(c.createdAt).toLocaleString()}
                                 </div>
                                 {canEditComment(c) && (
-                                  <button className="rounded border border-neutral-700 px-2 py-0.5 hover:bg-neutral-900" onClick={() => deleteComment(cKey, c.id)}>
+                                  <button
+                                    className="rounded border border-neutral-700 px-2 py-0.5 hover:bg-neutral-900"
+                                    onClick={() => deleteComment(cKey, c.id)}
+                                  >
                                     Delete
                                   </button>
                                 )}
                               </div>
-                              <div className="mt-1 text-sm text-neutral-200">{c.text}</div>
-                              {c.imageUrl && <img src={c.imageUrl} alt="" className="mt-2 max-h-60 w-auto rounded-md border border-neutral-800" />}
+                              <div className="mt-1 text-sm text-neutral-200">
+                                {c.text}
+                              </div>
+                              {c.imageUrl && (
+                                <img
+                                  src={c.imageUrl}
+                                  alt=""
+                                  className="mt-2 max-h-60 w-auto rounded-md border border-neutral-800"
+                                />
+                              )}
                             </div>
                           ))}
                         </div>
@@ -954,7 +1121,11 @@ function PageInner() {
                     </article>
                   );
                 })}
-              {posts.length === 0 && <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">No posts yet.</div>}
+              {posts.length === 0 && (
+                <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">
+                  No posts yet.
+                </div>
+              )}
             </div>
           )}
 
@@ -962,7 +1133,9 @@ function PageInner() {
           {tab === 'events' && (
             <>
               <SectionDisclaimer>
-                Parasphere does not organise, endorse, or guarantee any events listed here. Users should verify details, reputation, and any warranties independently.
+                Paraverse does not organise, endorse, or guarantee any events listed
+                here. Users should verify details, reputation, and any warranties
+                independently.
               </SectionDisclaimer>
 
               <div className="mb-3">
@@ -975,44 +1148,89 @@ function PageInner() {
               </div>
 
               <div className="grid gap-4">
-                {events
+                {activeEvents
                   .filter(byCountry<EventItem>(country))
                   .sort(sortEvents)
                   .map((ev) => {
                     const cKey = `event:${ev.id}`;
                     return (
-                      <article key={ev.id} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+                      <article
+                        key={ev.id}
+                        className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
+                      >
                         <div className="flex items-center justify-between">
-                          <div className="text-xs text-neutral-400">by {ev.postedBy.name}</div>
-                          <StarBadge value={eventStars[ev.id] ?? 0} onClick={() => giveEventStar(ev.id)} />
+                          <div className="text-xs text-neutral-400">
+                            by {ev.postedBy.name}
+                          </div>
+                          <StarBadge
+                            value={eventStars[ev.id] ?? 0}
+                            onClick={() => giveEventStar(ev.id)}
+                          />
                         </div>
                         <h3 className="text-lg font-semibold">{ev.title}</h3>
-                        {ev.imageUrl && <img src={ev.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800" />}
+                        {ev.imageUrl && (
+                          <img
+                            src={ev.imageUrl}
+                            alt=""
+                            className="mt-2 rounded-md border border-neutral-800"
+                          />
+                        )}
                         {ev.description && <TranslatePost text={ev.description} />}
                         <div className="mt-2 text-xs text-neutral-400">
-                          Date: {new Date(ev.startISO).toLocaleString()} {ev.endISO ? `— ${new Date(ev.endISO).toLocaleString()}` : ''}
+                          Date: {new Date(ev.startISO).toLocaleString()}{' '}
+                          {ev.endISO
+                            ? `— ${new Date(ev.endISO).toLocaleString()}`
+                            : ''}
                         </div>
-                        {ev.locationText && <div className="text-xs text-neutral-400">Location: {ev.locationText}</div>}
-                        {ev.countryCode && <div className="text-xs text-neutral-400">Country: {ev.countryCode}</div>}
-                        {ev.postalCode && <div className="text-xs text-neutral-400">Post code: {ev.postalCode}</div>}
-                        {ev.priceText && <div className="text-xs text-neutral-400">Price: {ev.priceText}</div>}
+                        {ev.locationText && (
+                          <div className="text-xs text-neutral-400">
+                            Location: {ev.locationText}
+                          </div>
+                        )}
+                        {ev.countryCode && (
+                          <div className="text-xs text-neutral-400">
+                            Country: {ev.countryCode}
+                          </div>
+                        )}
+                        {ev.postalCode && (
+                          <div className="text-xs text-neutral-400">
+                            Post code: {ev.postalCode}
+                          </div>
+                        )}
+                        {ev.priceText && (
+                          <div className="text-xs text-neutral-400">
+                            Price: {ev.priceText}
+                          </div>
+                        )}
                         {ev.link && (
-                          <a className="mt-2 inline-block text-purple-200 hover:underline" href={ev.link} target="_blank" rel="noreferrer">
+                          <a
+                            className="mt-2 inline-block text-purple-200 hover:underline"
+                            href={ev.link}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
                             Tickets / Info
                           </a>
                         )}
 
                         <div className="mt-3 flex items-center gap-3">
-                          <button className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900" onClick={() => openComment(cKey)}>
+                          <button
+                            className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900"
+                            onClick={() => openComment(cKey)}
+                          >
                             Comment
                           </button>
-                          <div className="text-xs text-neutral-500">{(comments[cKey]?.length ?? 0)} comments</div>
+                          <div className="text-xs text-neutral-500">
+                            {(comments[cKey]?.length ?? 0)} comments
+                          </div>
                         </div>
                       </article>
                     );
                   })}
-                {events.filter(byCountry<EventItem>(country)).length === 0 && (
-                  <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">No events yet.</div>
+                {activeEvents.filter(byCountry<EventItem>(country)).length === 0 && (
+                  <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">
+                    No events yet.
+                  </div>
                 )}
               </div>
             </>
@@ -1022,17 +1240,28 @@ function PageInner() {
           {tab === 'marketplace' && (
             <>
               <SectionDisclaimer>
-                Marketplace listings are user-posted advertisements. Parasphere is not a party to any transaction and accepts no liability. Do your own checks, warranties, and payments externally.
+                Marketplace listings are user-posted advertisements. Paraverse is not a
+                party to any transaction and accepts no liability. Do your own checks,
+                warranties, and payments externally.
               </SectionDisclaimer>
 
               <div className="mb-3 flex items-center gap-2">
-                <Chip active={marketFilter === 'All'} onClick={() => setMarketFilter('All')}>
+                <Chip
+                  active={marketFilter === 'All'}
+                  onClick={() => setMarketFilter('All')}
+                >
                   All
                 </Chip>
-                <Chip active={marketFilter === 'Product'} onClick={() => setMarketFilter('Product')}>
+                <Chip
+                  active={marketFilter === 'Product'}
+                  onClick={() => setMarketFilter('Product')}
+                >
                   Products
                 </Chip>
-                <Chip active={marketFilter === 'Service'} onClick={() => setMarketFilter('Service')}>
+                <Chip
+                  active={marketFilter === 'Service'}
+                  onClick={() => setMarketFilter('Service')}
+                >
                   Services
                 </Chip>
                 <div className="grow" />
@@ -1047,44 +1276,76 @@ function PageInner() {
               <div className="grid gap-4">
                 {market
                   .filter(byCountry<MarketplaceItem>(country))
-                  .filter((m) => (marketFilter === 'All' ? true : m.kind === marketFilter))
+                  .filter((m) =>
+                    marketFilter === 'All' ? true : m.kind === marketFilter,
+                  )
                   .sort(sortMarket)
                   .map((m) => {
                     const cKey = `market:${m.id}`;
                     return (
-                      <article key={m.id} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+                      <article
+                        key={m.id}
+                        className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
+                      >
                         <div className="flex items-center justify-between">
                           <div className="text-xs text-neutral-400">
                             {m.kind} • by {m.postedBy.name}
                           </div>
-                          <StarBadge value={marketStars[m.id] ?? 0} onClick={() => giveMarketStar(m.id)} />
+                          <StarBadge
+                            value={marketStars[m.id] ?? 0}
+                            onClick={() => giveMarketStar(m.id)}
+                          />
                         </div>
                         <h3 className="text-lg font-semibold">{m.title}</h3>
-                        {m.imageUrl && <img src={m.imageUrl} className="mt-2 rounded-md border border-neutral-800" alt="" />}
+                        {m.imageUrl && (
+                          <img
+                            src={m.imageUrl}
+                            className="mt-2 rounded-md border border-neutral-800"
+                            alt=""
+                          />
+                        )}
                         <TranslatePost text={m.description} />
                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-neutral-400">
                           {m.price && <span>Price: £{m.price}</span>}
-                          {m.locationText && <span>Location: {m.locationText}</span>}
-                          {m.countryCode && <span>Country: {m.countryCode}</span>}
-                          {m.postalCode && <span>Post code: {m.postalCode}</span>}
+                          {m.locationText && (
+                            <span>Location: {m.locationText}</span>
+                          )}
+                          {m.countryCode && (
+                            <span>Country: {m.countryCode}</span>
+                          )}
+                          {m.postalCode && (
+                            <span>Post code: {m.postalCode}</span>
+                          )}
                           {m.contactOrLink && (
-                            <a className="text-cyan-300 hover:underline" href={m.contactOrLink} target="_blank" rel="noreferrer">
+                            <a
+                              className="text-cyan-300 hover:underline"
+                              href={m.contactOrLink}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
                               Contact / Link
                             </a>
                           )}
                         </div>
 
                         <div className="mt-3 flex items-center gap-3">
-                          <button className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900" onClick={() => openComment(cKey)}>
+                          <button
+                            className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900"
+                            onClick={() => openComment(cKey)}
+                          >
                             Comment
                           </button>
-                          <div className="text-xs text-neutral-500">{(comments[cKey]?.length ?? 0)} comments</div>
+                          <div className="text-xs text-neutral-500">
+                            {(comments[cKey]?.length ?? 0)} comments
+                          </div>
                         </div>
                       </article>
                     );
                   })}
                 {market.filter(byCountry<MarketplaceItem>(country)).length === 0 && (
-                  <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">No listings yet.</div>
+                  <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">
+                    No listings yet.
+                  </div>
                 )}
               </div>
             </>
@@ -1094,7 +1355,9 @@ function PageInner() {
           {tab === 'collaboration' && (
             <>
               <SectionDisclaimer>
-                Collaboration posts are user-organised. Parasphere does not mediate or guarantee any arrangement—please verify reputation, safety, and terms independently.
+                Collaboration posts are user-organised. Paraverse does not mediate or
+                guarantee any arrangement—please verify reputation, safety, and terms
+                independently.
               </SectionDisclaimer>
 
               <div className="mb-3">
@@ -1107,43 +1370,75 @@ function PageInner() {
               </div>
 
               <div className="grid gap-4">
-                {collabs
+                {activeCollabs
                   .filter(byCountry<CollabItem>(country))
                   .sort(sortCollab)
                   .map((c) => {
                     const cKey = `collab:${c.id}`;
                     return (
-                      <article key={c.id} className="rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+                      <article
+                        key={c.id}
+                        className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
+                      >
                         <div className="flex items-center justify-between">
                           <h3 className="text-lg font-semibold">{c.title}</h3>
-                          <StarBadge value={collabStars[c.id] ?? 0} onClick={() => giveCollabStar(c.id)} />
+                          <StarBadge
+                            value={collabStars[c.id] ?? 0}
+                            onClick={() => giveCollabStar(c.id)}
+                          />
                         </div>
-                        {c.imageUrl && <img src={c.imageUrl} alt="" className="mt-2 rounded-md border border-neutral-800" />}
+                        {c.imageUrl && (
+                          <img
+                            src={c.imageUrl}
+                            alt=""
+                            className="mt-2 rounded-md border border-neutral-800"
+                          />
+                        )}
                         {c.description && <TranslatePost text={c.description} />}
                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-neutral-400">
-                          {c.dateISO && <span>Date: {new Date(c.dateISO).toLocaleString()}</span>}
-                          {c.locationText && <span>Location: {c.locationText}</span>}
-                          {c.countryCode && <span>Country: {c.countryCode}</span>}
-                          {c.postalCode && <span>Post code: {c.postalCode}</span>}
+                          {c.dateISO && (
+                            <span>Date: {new Date(c.dateISO).toLocaleString()}</span>
+                          )}
+                          {c.locationText && (
+                            <span>Location: {c.locationText}</span>
+                          )}
+                          {c.countryCode && (
+                            <span>Country: {c.countryCode}</span>
+                          )}
+                          {c.postalCode && (
+                            <span>Post code: {c.postalCode}</span>
+                          )}
                           {c.priceText && <span>Price: {c.priceText}</span>}
                           {c.contact && (
-                            <a className="text-cyan-300 hover:underline" href={c.contact} target="_blank" rel="noreferrer">
+                            <a
+                              className="text-cyan-300 hover:underline"
+                              href={c.contact}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
                               Contact / Link
                             </a>
                           )}
                         </div>
 
                         <div className="mt-3 flex items-center gap-3">
-                          <button className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900" onClick={() => openComment(cKey)}>
+                          <button
+                            className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900"
+                            onClick={() => openComment(cKey)}
+                          >
                             Comment
                           </button>
-                          <div className="text-xs text-neutral-500">{(comments[cKey]?.length ?? 0)} comments</div>
+                          <div className="text-xs text-neutral-500">
+                            {(comments[cKey]?.length ?? 0)} comments
+                          </div>
                         </div>
                       </article>
                     );
                   })}
-                {collabs.filter(byCountry<CollabItem>(country)).length === 0 && (
-                  <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">No collaboration posts yet.</div>
+                {activeCollabs.filter(byCountry<CollabItem>(country)).length === 0 && (
+                  <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">
+                    No collaboration posts yet.
+                  </div>
                 )}
               </div>
             </>
@@ -1155,7 +1450,12 @@ function PageInner() {
       <Modal open={postFormOpen} onClose={() => setPostFormOpen(false)}>
         <form onSubmit={handleAddPost} className="space-y-3">
           <h3 className="text-lg font-semibold">Add Post</h3>
-          <input name="title" placeholder="Title" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input
+            name="title"
+            placeholder="Title"
+            required
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
           <div>
             <div className="mb-1 text-sm text-neutral-300">Location (required)</div>
             <input
@@ -1169,7 +1469,11 @@ function PageInner() {
             />
             {!!locQuery && (
               <div className="mt-2 max-h-44 overflow-auto rounded-md border border-neutral-800 bg-neutral-950">
-                {locationOptions.length === 0 && <div className="px-3 py-2 text-sm text-neutral-500">No matches.</div>}
+                {locationOptions.length === 0 && (
+                  <div className="px-3 py-2 text-sm text-neutral-500">
+                    No matches.
+                  </div>
+                )}
                 {locationOptions.map((l) => (
                   <button
                     key={l.id}
@@ -1178,19 +1482,31 @@ function PageInner() {
                       setSelectedLocId(l.id);
                       setLocQuery(l.title);
                     }}
-                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-neutral-900 ${selectedLocId === l.id ? 'bg-neutral-900' : ''}`}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-neutral-900 ${
+                      selectedLocId === l.id ? 'bg-neutral-900' : ''
+                    }`}
                   >
                     <span>{l.title}</span>
-                    {selectedLocId === l.id && <span className="text-cyan-300">Selected</span>}
+                    {selectedLocId === l.id && (
+                      <span className="text-cyan-300">Selected</span>
+                    )}
                   </button>
                 ))}
               </div>
             )}
             <input type="hidden" name="locationId" value={selectedLocId} />
-            {!selectedLocId && <div className="mt-1 text-xs text-red-300">Pick a location from the list before posting.</div>}
+            {!selectedLocId && (
+              <div className="mt-1 text-xs text-red-300">
+                Pick a location from the list before posting.
+              </div>
+            )}
           </div>
 
-          <textarea name="desc" placeholder="What happened? Evidence? Notes…" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <textarea
+            name="desc"
+            placeholder="What happened? Evidence? Notes…"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
 
           <div>
             <div className="mb-1 text-sm text-neutral-300">Tag friends</div>
@@ -1200,24 +1516,43 @@ function PageInner() {
                   key={u.id}
                   type="button"
                   onClick={() => toggle(postTagUsers, u.id, setPostTagUsers)}
-                  className={`rounded-full border px-3 py-1 text-sm ${postTagUsers.includes(u.id) ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-neutral-700 text-neutral-300'}`}
+                  className={`rounded-full border px-3 py-1 text-sm ${
+                    postTagUsers.includes(u.id)
+                      ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+                      : 'border-neutral-700 text-neutral-300'
+                  }`}
                 >
                   {u.name}
                 </button>
               ))}
-              {Object.values(usersById).length === 0 && <span className="text-xs text-neutral-600">No users yet.</span>}
+              {Object.values(usersById).length === 0 && (
+                <span className="text-xs text-neutral-600">No users yet.</span>
+              )}
             </div>
           </div>
 
           <div>
             <div className="mb-1 text-sm text-neutral-300">Photo (optional)</div>
-            <input type="file" accept="image/*" onChange={postImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={postImgChange}
+              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+            />
           </div>
 
-          <input name="link" placeholder="Link (FB, YouTube, TikTok)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input
+            name="link"
+            placeholder="Link (FB, YouTube, TikTok)"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
 
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setPostFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">
+            <button
+              type="button"
+              onClick={() => setPostFormOpen(false)}
+              className="rounded-md border border-neutral-700 px-3 py-1.5"
+            >
               Cancel
             </button>
             <button
@@ -1234,28 +1569,68 @@ function PageInner() {
       <Modal open={locFormOpen} onClose={() => setLocFormOpen(false)}>
         <form onSubmit={handleAddLocation} className="space-y-3">
           <h3 className="text-lg font-semibold">Add Location</h3>
-          <input name="title" placeholder="Location title" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <select name="type" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
+          <input
+            name="title"
+            placeholder="Location title"
+            required
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <select
+            name="type"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          >
             <option value="HAUNTING">Haunting</option>
-            <option value="UFO">UFO</option>
-            <option value="CRYPTID">Cryptid</option>
             <option value="EVENT">Event</option>
+            <option value="COLLAB">Collaboration</option>
           </select>
-          <textarea name="summary" placeholder="Short summary (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <input name="address" placeholder="Address (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <input name="priceInfo" placeholder="Prices (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <input name="website" placeholder="Website (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <textarea
+            name="summary"
+            placeholder="Short summary (optional)"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <input
+            name="address"
+            placeholder="Address (optional)"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <input
+            name="priceInfo"
+            placeholder="Prices (optional)"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <input
+            name="website"
+            placeholder="Website (optional)"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
 
           <div className="grid grid-cols-2 gap-2">
-            <input name="lng" defaultValue={newLoc?.lng ?? -2.5} placeholder="Lng" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-            <input name="lat" defaultValue={newLoc?.lat ?? 54.3} placeholder="Lat" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            <input
+              name="lng"
+              defaultValue={newLoc?.lng ?? -2.5}
+              placeholder="Lng"
+              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+            />
+            <input
+              name="lat"
+              defaultValue={newLoc?.lat ?? 54.3}
+              placeholder="Lat"
+              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+            />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setLocFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">
+            <button
+              type="button"
+              onClick={() => setLocFormOpen(false)}
+              className="rounded-md border border-neutral-700 px-3 py-1.5"
+            >
               Cancel
             </button>
-            <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">
+            <button
+              type="submit"
+              className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20"
+            >
               Save
             </button>
           </div>
@@ -1265,15 +1640,32 @@ function PageInner() {
       <Modal open={eventFormOpen} onClose={() => setEventFormOpen(false)}>
         <form onSubmit={handleAddEvent} className="space-y-3">
           <h3 className="text-lg font-semibold">Add Event</h3>
-          <input name="title" placeholder="Title" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <textarea name="desc" placeholder="Description (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <input name="where" placeholder="Location (text)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input
+            name="title"
+            placeholder="Title"
+            required
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <textarea
+            name="desc"
+            placeholder="Description (optional)"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <input
+            name="where"
+            placeholder="Location (text)"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
 
           {/* Country + Postal */}
-          <div className="grid grid-cols-2 gap-2 mt-2">
+          <div className="mt-2 grid grid-cols-2 gap-2">
             <div>
               <div className="mb-1 text-xs text-neutral-400">Country</div>
-              <select name="country" defaultValue={country} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
+              <select
+                name="country"
+                defaultValue={country}
+                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+              >
                 {countries.map((c) => (
                   <option key={c.code} value={c.code}>
                     {c.name} ({c.code})
@@ -1283,33 +1675,68 @@ function PageInner() {
             </div>
             <div>
               <div className="mb-1 text-xs text-neutral-400">ZIP / Post code</div>
-              <input name="postal" placeholder="e.g. M1 1AE or 90210" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+              <input
+                name="postal"
+                placeholder="e.g. M1 1AE or 90210"
+                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
               <div className="mb-1 text-xs text-neutral-400">From</div>
-              <input type="datetime-local" name="start" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+              <input
+                type="datetime-local"
+                name="start"
+                required
+                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+              />
             </div>
             <div>
               <div className="mb-1 text-xs text-neutral-400">To</div>
-              <input type="datetime-local" name="end" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+              <input
+                type="datetime-local"
+                name="end"
+                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+              />
             </div>
           </div>
 
           <div>
-            <div className="mb-1 text-sm text-neutral-300">Event photo (optional)</div>
-            <input type="file" accept="image/*" onChange={evImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            <div className="mb-1 text-sm text-neutral-300">
+              Event photo (optional)
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={evImgChange}
+              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+            />
           </div>
 
-          <input name="price" placeholder="Price (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <input name="link" placeholder="Ticket / Info link (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input
+            name="price"
+            placeholder="Price (optional)"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <input
+            name="link"
+            placeholder="Ticket / Info link (optional)"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setEventFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">
+            <button
+              type="button"
+              onClick={() => setEventFormOpen(false)}
+              className="rounded-md border border-neutral-700 px-3 py-1.5"
+            >
               Cancel
             </button>
-            <button type="submit" className="rounded-md border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-purple-200 hover:bg-purple-500/20">
+            <button
+              type="submit"
+              className="rounded-md border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-purple-200 hover:bg-purple-500/20"
+            >
               Save
             </button>
           </div>
@@ -1319,22 +1746,47 @@ function PageInner() {
       <Modal open={listingFormOpen} onClose={() => setListingFormOpen(false)}>
         <form onSubmit={handleAddListing} className="space-y-3">
           <h3 className="text-lg font-semibold">Add Listing</h3>
-          <select name="kind" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
+          <select
+            name="kind"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          >
             <option>Product</option>
             <option>Service</option>
           </select>
-          <input name="title" placeholder="Title" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <textarea name="desc" placeholder="Description" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input
+            name="title"
+            placeholder="Title"
+            required
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <textarea
+            name="desc"
+            placeholder="Description"
+            required
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
           <div className="grid grid-cols-2 gap-2">
-            <input name="price" placeholder="Price (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-            <input name="where" placeholder="Location (optional)" className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            <input
+              name="price"
+              placeholder="Price (optional)"
+              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+            />
+            <input
+              name="where"
+              placeholder="Location (optional)"
+              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+            />
           </div>
 
           {/* Country + Postal */}
-          <div className="grid grid-cols-2 gap-2 mt-2">
+          <div className="mt-2 grid grid-cols-2 gap-2">
             <div>
               <div className="mb-1 text-xs text-neutral-400">Country</div>
-              <select name="country" defaultValue={country} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
+              <select
+                name="country"
+                defaultValue={country}
+                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+              >
                 {countries.map((c) => (
                   <option key={c.code} value={c.code}>
                     {c.name} ({c.code})
@@ -1344,21 +1796,42 @@ function PageInner() {
             </div>
             <div>
               <div className="mb-1 text-xs text-neutral-400">ZIP / Post code</div>
-              <input name="postal" placeholder="e.g. M1 1AE or 90210" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+              <input
+                name="postal"
+                placeholder="e.g. M1 1AE or 90210"
+                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+              />
             </div>
           </div>
 
           <div>
             <div className="mb-1 text-sm text-neutral-300">Photos (optional)</div>
-            <input type="file" accept="image/*" onChange={mkImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={mkImgChange}
+              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+            />
           </div>
 
-          <input name="contact" placeholder="Contact or link" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input
+            name="contact"
+            placeholder="Contact or link"
+            required
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setListingFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">
+            <button
+              type="button"
+              onClick={() => setListingFormOpen(false)}
+              className="rounded-md border border-neutral-700 px-3 py-1.5"
+            >
               Cancel
             </button>
-            <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">
+            <button
+              type="submit"
+              className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20"
+            >
               Save
             </button>
           </div>
@@ -1368,18 +1841,47 @@ function PageInner() {
       <Modal open={collabFormOpen} onClose={() => setCollabFormOpen(false)}>
         <form onSubmit={handleAddCollab} className="space-y-3">
           <h3 className="text-lg font-semibold">Add Collaboration</h3>
-          <input name="title" placeholder="Title" required className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <textarea name="desc" placeholder="Details (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <input type="datetime-local" name="date" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <input name="where" placeholder="Location (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <input name="price" placeholder="Price (optional)" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
-          <input name="contact" placeholder="Contact or link" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+          <input
+            name="title"
+            placeholder="Title"
+            required
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <textarea
+            name="desc"
+            placeholder="Details (optional)"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <input
+            type="datetime-local"
+            name="date"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <input
+            name="where"
+            placeholder="Location (optional)"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <input
+            name="price"
+            placeholder="Price (optional)"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
+          <input
+            name="contact"
+            placeholder="Contact or link"
+            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+          />
 
           {/* Country + Postal */}
-          <div className="grid grid-cols-2 gap-2 mt-2">
+          <div className="mt-2 grid grid-cols-2 gap-2">
             <div>
               <div className="mb-1 text-xs text-neutral-400">Country</div>
-              <select name="country" defaultValue={country} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2">
+              <select
+                name="country"
+                defaultValue={country}
+                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+              >
                 {countries.map((c) => (
                   <option key={c.code} value={c.code}>
                     {c.name} ({c.code})
@@ -1389,20 +1891,36 @@ function PageInner() {
             </div>
             <div>
               <div className="mb-1 text-xs text-neutral-400">ZIP / Post code</div>
-              <input name="postal" placeholder="e.g. M1 1AE or 90210" className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+              <input
+                name="postal"
+                placeholder="e.g. M1 1AE or 90210"
+                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+              />
             </div>
           </div>
 
           <div>
             <div className="mb-1 text-sm text-neutral-300">Photo (optional)</div>
-            <input type="file" accept="image/*" onChange={cbImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={cbImgChange}
+              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+            />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setCollabFormOpen(false)} className="rounded-md border border-neutral-700 px-3 py-1.5">
+            <button
+              type="button"
+              onClick={() => setCollabFormOpen(false)}
+              className="rounded-md border border-neutral-700 px-3 py-1.5"
+            >
               Cancel
             </button>
-            <button type="submit" className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20">
+            <button
+              type="submit"
+              className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20"
+            >
               Save
             </button>
           </div>
@@ -1428,14 +1946,29 @@ function PageInner() {
             className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
           />
           <div>
-            <div className="mb-1 text-sm text-neutral-300">Attach photo (optional)</div>
-            <input type="file" accept="image/*" onChange={cImgChange} className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2" />
+            <div className="mb-1 text-sm text-neutral-300">
+              Attach photo (optional)
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={cImgChange}
+              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
+            />
             {cImg && (
               <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
-                <img src={cImg} alt="preview" className="max-h-56 w-auto rounded-md border border-neutral-800" />
+                <img
+                  src={cImg}
+                  alt="preview"
+                  className="max-h-56 w-auto rounded-md border border-neutral-800"
+                />
                 <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
                   <span className="truncate">{cImgName}</span>
-                  <button type="button" onClick={cImgClear} className="text-neutral-300 hover:underline">
+                  <button
+                    type="button"
+                    onClick={cImgClear}
+                    className="text-neutral-300 hover:underline"
+                  >
                     Remove
                   </button>
                 </div>
@@ -1444,21 +1977,33 @@ function PageInner() {
           </div>
 
           <div>
-            <div className="text-sm text-neutral-300 mb-1">Tag friends (optional)</div>
+            <div className="mb-1 text-sm text-neutral-300">
+              Tag friends (optional)
+            </div>
             <div className="flex flex-wrap gap-2">
               {Object.values(usersById).map((u) => (
                 <button
                   key={u.id}
                   type="button"
                   onClick={() =>
-                    setCommentTags((prev) => (prev.includes(u.id) ? prev.filter((x) => x !== u.id) : [...prev, u.id]))
+                    setCommentTags((prev) =>
+                      prev.includes(u.id)
+                        ? prev.filter((x) => x !== u.id)
+                        : [...prev, u.id],
+                    )
                   }
-                  className={`rounded-full border px-3 py-1 text-sm ${commentTags.includes(u.id) ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300' : 'border-neutral-700 text-neutral-300'}`}
+                  className={`rounded-full border px-3 py-1 text-sm ${
+                    commentTags.includes(u.id)
+                      ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
+                      : 'border-neutral-700 text-neutral-300'
+                  }`}
                 >
                   {u.name}
                 </button>
               ))}
-              {Object.values(usersById).length === 0 && <span className="text-xs text-neutral-600">No users yet.</span>}
+              {Object.values(usersById).length === 0 && (
+                <span className="text-xs text-neutral-600">No users yet.</span>
+              )}
             </div>
           </div>
 
@@ -1487,4 +2032,3 @@ function PageInner() {
     </main>
   );
 }
-

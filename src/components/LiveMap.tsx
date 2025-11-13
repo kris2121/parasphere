@@ -101,7 +101,6 @@ export default forwardRef<LiveMapHandle, Props>(function LiveMap(
     map.addControl(geo, 'bottom-right');
 
     map.on('load', () => {
-      // Type-safe, tolerant handler (mapbox types don't expose a precise event shape here)
       (geo as any).on('geolocate', (e: any) => {
         const coords = e?.coords || e?.position?.coords;
         if (coords && typeof coords.longitude === 'number' && typeof coords.latitude === 'number') {
@@ -166,34 +165,10 @@ export default forwardRef<LiveMapHandle, Props>(function LiveMap(
         className="rounded-xl overflow-hidden border border-neutral-800"
         style={{ width: '100%', height: `min(${heightVh.desktop}vh, 700px)` }}
       />
-      {/* Legend */}
-      <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-3 z-10">
-        <div className="flex gap-4 rounded-lg border border-neutral-800 bg-neutral-950/80 backdrop-blur px-4 py-2 text-xs text-neutral-200">
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: '#ffffff' }} />
-            Hauntings
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: '#9ee37d' }} />
-            UFOs
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: '#f2a65a' }} />
-            Cryptids
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: '#b18cff' }} />
-            Events
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: '#00fff6' }} />
-            You
-          </span>
-        </div>
-      </div>
     </div>
   );
 });
+
 
 
 
