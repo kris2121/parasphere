@@ -16,6 +16,8 @@ import LiveMap, { LocationData, LiveMapHandle } from '@/components/LiveMap';
 import LocationDrawer from '@/components/LocationDrawer';
 import UserDrawer, { UserMini } from '@/components/UserDrawer';
 import MapActions from '@/components/MapActions';
+import EventsFeed, { EventsFeedEvent } from '@/components/EventsFeed';
+import MarketplaceFeed from '@/components/MarketplaceFeed';
 
 /* =========================== Country Scope Context =========================== */
 
@@ -278,21 +280,8 @@ type MarketplaceItem = {
   postalCode?: string;
 };
 
-type EventItem = {
-  id: string;
-  title: string;
-  description?: string;
-  locationText?: string;
-  startISO: string;
-  endISO?: string;
-  priceText?: string;
-  link?: string;
-  imageUrl?: string;
-  createdAt: number;
-  postedBy: { id: string; name: string };
-  countryCode?: string;
-  postalCode?: string;
-};
+type EventItem = EventsFeedEvent;
+
 
 type CollabItem = {
   id: string;
@@ -744,16 +733,6 @@ function PageInner() {
   // Auto-prune expired events & collabs (based on end/date)
   const now = Date.now();
 
-  const activeEvents = useMemo(
-    () =>
-      events.filter((ev) => {
-        const start = ev.startISO ? new Date(ev.startISO).getTime() : 0;
-        const end = ev.endISO ? new Date(ev.endISO).getTime() : start;
-        return end >= now;
-      }),
-    [events, now],
-  );
-
   const activeCollabs = useMemo(
     () =>
       collabs.filter((c) => {
@@ -771,8 +750,7 @@ function PageInner() {
     if (sb !== sa) return sb - sa;
     return b.createdAt - a.createdAt;
   };
-  const sortEvents = (a: EventItem, b: EventItem) =>
-    new Date(b.startISO).getTime() - new Date(a.startISO).getTime();
+ 
   const sortMarket = (a: MarketplaceItem, b: MarketplaceItem) =>
     b.createdAt - a.createdAt;
   const sortCollab = (a: CollabItem, b: CollabItem) => {
@@ -999,227 +977,36 @@ function PageInner() {
           )}
 
 
-          {/* EVENTS */}
-          {tab === 'events' && (
-            <>
-              <SectionDisclaimer>
-                Paraverse does not organise, endorse, or guarantee any events listed
-                here. Users should verify details, reputation, and any warranties
-                independently.
-              </SectionDisclaimer>
+         {/* EVENTS */}
+{tab === 'events' && (
+  <EventsFeed
+    events={events}
+    comments={comments}
+    setComments={setComments}
+    country={country}
+    countries={countries}
+    eventStars={eventStars}
+    giveEventStar={giveEventStar}
+    setEventFormOpen={setEventFormOpen}
+  />
+)}
 
-              <div className="mb-3">
-                <button
-                  onClick={() => setEventFormOpen(true)}
-                  className="rounded-md border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-sm text-purple-200 hover:bg-purple-500/20"
-                >
-                  + Add Event
-                </button>
-              </div>
 
-              <div className="grid gap-4">
-                {activeEvents
-                  .filter(byCountry<EventItem>(country))
-                  .sort(sortEvents)
-                  .map((ev) => {
-                    const cKey = `event:${ev.id}`;
-                    return (
-                      <article
-                        key={ev.id}
-                        className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="text-xs text-neutral-400">
-                            by {ev.postedBy.name}
-                          </div>
-                          <StarBadge
-                            value={eventStars[ev.id] ?? 0}
-                            onClick={() => giveEventStar(ev.id)}
-                          />
-                        </div>
-                        <h3 className="text-lg font-semibold">{ev.title}</h3>
-                        {ev.imageUrl && (
-                          <img
-                            src={ev.imageUrl}
-                            alt=""
-                            className="mt-2 rounded-md border border-neutral-800"
-                          />
-                        )}
-                        {ev.description && <TranslatePost text={ev.description} />}
-                        <div className="mt-2 text-xs text-neutral-400">
-                          Date: {new Date(ev.startISO).toLocaleString()}{' '}
-                          {ev.endISO
-                            ? `— ${new Date(ev.endISO).toLocaleString()}`
-                            : ''}
-                        </div>
-                        {ev.locationText && (
-                          <div className="text-xs text-neutral-400">
-                            Location: {ev.locationText}
-                          </div>
-                        )}
-                        {ev.countryCode && (
-                          <div className="text-xs text-neutral-400">
-                            Country: {ev.countryCode}
-                          </div>
-                        )}
-                        {ev.postalCode && (
-                          <div className="text-xs text-neutral-400">
-                            Post code: {ev.postalCode}
-                          </div>
-                        )}
-                        {ev.priceText && (
-                          <div className="text-xs text-neutral-400">
-                            Price: {ev.priceText}
-                          </div>
-                        )}
-                        {ev.link && (
-                          <a
-                            className="mt-2 inline-block text-purple-200 hover:underline"
-                            href={ev.link}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Tickets / Info
-                          </a>
-                        )}
+         {/* MARKETPLACE */}
+{tab === 'marketplace' && (
+  <MarketplaceFeed
+    items={market}
+    comments={comments}
+    country={country}
+    marketStars={marketStars}
+    onGiveStar={giveMarketStar}
+    onOpenComment={openComment}
+    marketFilter={marketFilter}
+    setMarketFilter={setMarketFilter}
+    onOpenListingForm={() => setListingFormOpen(true)}
+  />
+)}
 
-                        <div className="mt-3 flex items-center gap-3">
-                          <button
-                            className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900"
-                            onClick={() => openComment(cKey)}
-                          >
-                            Comment
-                          </button>
-                          <div className="text-xs text-neutral-500">
-                            {(comments[cKey]?.length ?? 0)} comments
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                {activeEvents.filter(byCountry<EventItem>(country)).length === 0 && (
-                  <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">
-                    No events yet.
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* MARKETPLACE */}
-          {tab === 'marketplace' && (
-            <>
-              <SectionDisclaimer>
-                Marketplace listings are user-posted advertisements. Paraverse is not a
-                party to any transaction and accepts no liability. Do your own checks,
-                warranties, and payments externally.
-              </SectionDisclaimer>
-
-              <div className="mb-3 flex items-center gap-2">
-                <Chip
-                  active={marketFilter === 'All'}
-                  onClick={() => setMarketFilter('All')}
-                >
-                  All
-                </Chip>
-                <Chip
-                  active={marketFilter === 'Product'}
-                  onClick={() => setMarketFilter('Product')}
-                >
-                  Products
-                </Chip>
-                <Chip
-                  active={marketFilter === 'Service'}
-                  onClick={() => setMarketFilter('Service')}
-                >
-                  Services
-                </Chip>
-                <div className="grow" />
-                <button
-                  onClick={() => setListingFormOpen(true)}
-                  className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-300 hover:bg-cyan-500/20"
-                >
-                  + Add Listing
-                </button>
-              </div>
-
-              <div className="grid gap-4">
-                {market
-                  .filter(byCountry<MarketplaceItem>(country))
-                  .filter((m) =>
-                    marketFilter === 'All' ? true : m.kind === marketFilter,
-                  )
-                  .sort(sortMarket)
-                  .map((m) => {
-                    const cKey = `market:${m.id}`;
-                    return (
-                      <article
-                        key={m.id}
-                        className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="text-xs text-neutral-400">
-                            {m.kind} • by {m.postedBy.name}
-                          </div>
-                          <StarBadge
-                            value={marketStars[m.id] ?? 0}
-                            onClick={() => giveMarketStar(m.id)}
-                          />
-                        </div>
-                        <h3 className="text-lg font-semibold">{m.title}</h3>
-                        {m.imageUrl && (
-                          <img
-                            src={m.imageUrl}
-                            className="mt-2 rounded-md border border-neutral-800"
-                            alt=""
-                          />
-                        )}
-                        <TranslatePost text={m.description} />
-                        <div className="mt-2 flex flex-wrap gap-3 text-xs text-neutral-400">
-                          {m.price && <span>Price: £{m.price}</span>}
-                          {m.locationText && (
-                            <span>Location: {m.locationText}</span>
-                          )}
-                          {m.countryCode && (
-                            <span>Country: {m.countryCode}</span>
-                          )}
-                          {m.postalCode && (
-                            <span>Post code: {m.postalCode}</span>
-                          )}
-                          {m.contactOrLink && (
-                            <a
-                              className="text-cyan-300 hover:underline"
-                              href={m.contactOrLink}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              Contact / Link
-                            </a>
-                          )}
-                        </div>
-
-                        <div className="mt-3 flex items-center gap-3">
-                          <button
-                            className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900"
-                            onClick={() => openComment(cKey)}
-                          >
-                            Comment
-                          </button>
-                          <div className="text-xs text-neutral-500">
-                            {(comments[cKey]?.length ?? 0)} comments
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                {market.filter(byCountry<MarketplaceItem>(country)).length === 0 && (
-                  <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">
-                    No listings yet.
-                  </div>
-                )}
-              </div>
-            </>
-          )}
 
           {/* COLLABORATION */}
           {tab === 'collaboration' && (
