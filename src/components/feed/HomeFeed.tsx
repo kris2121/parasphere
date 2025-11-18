@@ -1,9 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
+import { User as UserIcon, MessageCircle } from 'lucide-react';
+import type { UserMini } from '@/components/UserDrawer';
 
-type Post = {
+/* --------------------------------- Types --------------------------------- */
+
+export type HomeFeedPost = {
   id: string;
+  type: 'Post';
   title: string;
   desc: string;
   locationId?: string;
@@ -11,244 +16,243 @@ type Post = {
   linkUrl?: string;
   authorId: string;
   authorName: string;
+  tagUserIds?: string[];
   createdAt: number;
 };
 
-type HomeFeedProps = {
-  tab: string;
-  posts: Post[];
-  filteredPosts: Post[];
-  searchQuery: string;
-  selectedUserId: string | null;
-  selectedLocationId: string | null;
-  setSelectedLocationId: (id: string | null) => void;
-  setSelectedUserId: (id: string | null) => void;
-  usersById: Record<string, { id: string; name: string; avatarUrl?: string }>;
-  locations: Array<{ id: string; title: string }>;
-  postStars: Record<string, number>;
-  givePostStar: (id: string) => void;
-  comments: Record<string, any[]>;
-  canEditPost: (p: Post) => boolean;
-  editPost: (id: string, patch: Partial<Post>) => void;
-  deletePost: (id: string) => void;
-  canEditComment: (c: any) => boolean;
-  deleteComment: (key: string, id: string) => void;
-  openComment: (key: string) => void;
-  sortPosts: (a: Post, b: Post) => number;
+type Comment = {
+  id: string;
+  text: string;
+  authorId: string;
+  authorName: string;
+  createdAt: number;
+  imageUrl?: string;
+  parentId?: string | null;
+  tagUserIds?: string[];
 };
 
-/* Local helpers – duplicated from page.tsx just for this feed */
+type Props = {
+  currentUser: { id: string; name: string; avatarUrl?: string };
+  posts: HomeFeedPost[];
+  onEditPost: (id: string, patch: Partial<HomeFeedPost>) => void;
+  onDeletePost: (id: string) => void;
+  canEditPost: (p: HomeFeedPost) => boolean;
 
-function TranslatePost({ text }: { text?: string }) {
-  const [showTranslated, setShowTranslated] = useState(false);
-  if (!text) return null;
-  return (
-    <div className="mt-1">
-      <p className="text-sm text-neutral-300">
-        {showTranslated ? text : text}
-      </p>
-      <button
-        type="button"
-        onClick={() => setShowTranslated((v) => !v)}
-        className="mt-1 text-xs text-cyan-300 hover:underline"
-      >
-        {showTranslated ? 'Show original' : 'Translate'}
-      </button>
-    </div>
-  );
+  comments: Record<string, Comment[]>;
+  onOpenComment: (key: string, parentId?: string) => void;
+  onOpenEditComment: (key: string, commentId: string) => void;
+  canEditComment: (c: Comment) => boolean;
+
+  usersById: Record<string, UserMini>;
+  followedUsers: string[];
+  onOpenUser: (userId: string) => void;
+
+  sortPosts: (a: HomeFeedPost, b: HomeFeedPost) => number;
+
+  // open image in global lightbox
+  onOpenImage: (src: string) => void;
+};
+
+/* ---------------------------- Small helpers ---------------------------- */
+
+function getLinkLabel(url?: string) {
+  if (!url) return '';
+  const u = url.toLowerCase();
+  if (u.includes('youtube.com') || u.includes('youtu.be')) return 'YouTube';
+  if (u.includes('tiktok.com')) return 'TikTok';
+  if (u.includes('instagram.com')) return 'Instagram';
+  if (u.includes('facebook.com')) return 'Facebook';
+  return 'Link';
 }
 
-function StarBadge({ value, onClick }: { value: number; onClick?: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="inline-flex items-center gap-1 rounded-full border border-yellow-600/60 bg-yellow-500/10 px-2 py-0.5 text-xs text-yellow-200 hover:bg-yellow-500/20"
-      title="Give a star"
-    >
-      <span>★</span>
-      <span className="min-w-[1.2rem] text-center">{value}</span>
-    </button>
-  );
+function formatShortDate(ms: number) {
+  const d = new Date(ms);
+  return d.toLocaleString(undefined, {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
+
+/* --------------------------------- UI ---------------------------------- */
 
 export default function HomeFeed({
-  tab,
+  currentUser,
   posts,
-  filteredPosts,
-  searchQuery,
-  selectedUserId,
-  selectedLocationId,
-  setSelectedLocationId,
-  setSelectedUserId,
-  usersById,
-  locations,
-  postStars,
-  givePostStar,
-  comments,
+  onEditPost,
+  onDeletePost,
   canEditPost,
-  editPost,
-  deletePost,
+  comments,
+  onOpenComment,
+  onOpenEditComment,
   canEditComment,
-  deleteComment,
-  openComment,
+  usersById,
+  followedUsers,
+  onOpenUser,
   sortPosts,
-}: HomeFeedProps) {
-  // same logic you had in page.tsx
-  const postsSource = tab === 'home' ? filteredPosts : posts;
+  onOpenImage,
+}: Props) {
+  const sorted = [...posts].sort(sortPosts);
 
-  const list = postsSource
-    .filter(
-      (p) =>
-        (!selectedUserId || p.authorId === selectedUserId) &&
-        (!selectedLocationId || p.locationId === selectedLocationId) &&
-        (!searchQuery ||
-          p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.desc.toLowerCase().includes(searchQuery.toLowerCase())),
-    )
-    .sort(sortPosts);
+  if (sorted.length === 0) {
+    return (
+      <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">
+        No posts yet. Be the first to share something haunted…
+      </div>
+    );
+  }
 
   return (
-    <div className="grid gap-4">
-      {list.map((p) => {
-        const cKey = `post:${p.id}`;
+    <div className="space-y-3">
+      {sorted.map((p) => {
+        const key = `post:${p.id}`;
+        const postComments = comments[key] ?? [];
+        const author = usersById[p.authorId] ?? {
+          id: p.authorId,
+          name: p.authorName || 'User',
+        };
+        const isFollowed = followedUsers.includes(p.authorId);
+        const isMine = p.authorId === currentUser.id;
+        const linkLabel = getLinkLabel(p.linkUrl);
+
         return (
           <article
             key={p.id}
-            className="rounded-xl border border-neutral-800 bg-neutral-900 p-4"
+            className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900/95 p-3 text-sm shadow-sm"
           >
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-neutral-400">
-                Post • by{' '}
-                <button
-                  className="text-cyan-300 hover:underline"
-                  onClick={() => setSelectedUserId(p.authorId)}
-                >
-                  {usersById[p.authorId]?.name ?? p.authorName}
-                </button>
-              </div>
-              <StarBadge
-                value={postStars[p.id] ?? 0}
-                onClick={() => givePostStar(p.id)}
-              />
-            </div>
-
-            {canEditPost(p) && (
-              <div className="mt-2 flex items-center gap-2 text-xs">
-                <button
-                  className="rounded-md border border-neutral-700 px-2 py-1 hover:bg-neutral-900"
-                  onClick={() => {
-                    const title = prompt('Edit title', p.title) ?? p.title;
-                    const desc = prompt('Edit description', p.desc) ?? p.desc;
-                    editPost(p.id, { title, desc });
-                  }}
-                >
-                  Edit
-                </button>
-                <button
-                  className="rounded-md border border-red-500/70 px-2 py-1 text-red-300 hover:bg-red-500/10"
-                  onClick={() => {
-                    if (confirm('Delete this post?')) deletePost(p.id);
-                  }}
-                >
-                  Delete
-                </button>
-              </div>
-            )}
-
-            <h3 className="mt-1 text-lg font-semibold">{p.title}</h3>
-            <TranslatePost text={p.desc} />
-
-            {p.imageUrl && (
-              <img
-                src={p.imageUrl}
-                alt=""
-                className="mt-2 rounded-md border border-neutral-800"
-              />
-            )}
-            {p.linkUrl && (
-              <a
-                className="mt-2 inline-block text-cyan-300 hover:underline"
-                href={p.linkUrl}
-                target="_blank"
-                rel="noreferrer"
-              >
-                View link
-              </a>
-            )}
-            {p.locationId && (
-              <div className="mt-2 text-xs text-neutral-400">
-                Location:{' '}
-                <button
-                  className="text-cyan-300 hover:underline"
-                  onClick={() => {
-                    setSelectedLocationId(p.locationId!);
-                    setSelectedUserId(null);
-                  }}
-                >
-                  {locations.find((l) => l.id === p.locationId)?.title ??
-                    p.locationId}
-                </button>
-              </div>
-            )}
-
-            <div className="mt-3 flex items-center gap-3">
+            {/* Header: avatar + name + date */}
+            <header className="mb-2 flex items-center justify-between gap-3">
               <button
-                className="rounded-md border border-neutral-700 px-3 py-1 text-sm hover:bg-neutral-900"
-                onClick={() => openComment(cKey)}
+                type="button"
+                onClick={() => onOpenUser(author.id)}
+                className="flex items-center gap-2"
               >
-                Comment
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-neutral-800 text-xs text-neutral-200">
+                  {author.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={author.avatarUrl}
+                      alt={author.name}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <UserIcon size={16} className="text-neutral-300" />
+                  )}
+                </div>
+                <div className="flex flex-col items-start">
+                  <span className="text-xs font-semibold text-white">
+                    {author.name}
+                  </span>
+                  <span className="text-[11px] text-neutral-500">
+                    {formatShortDate(p.createdAt)}
+                  </span>
+                </div>
               </button>
-              <div className="text-xs text-neutral-500">
-                {(comments[cKey]?.length ?? 0)} comments
-              </div>
-            </div>
 
-            {comments[cKey]?.length ? (
-              <div className="mt-2 grid gap-2">
-                {comments[cKey].map((c) => (
-                  <div
-                    key={c.id}
-                    className="rounded-md border border-neutral-800 bg-neutral-950 p-2"
-                  >
-                    <div className="flex items-center justify-between text-xs text-neutral-400">
-                      <div>
-                        by{' '}
-                        <span className="text-cyan-300">
-                          {c.authorName}
-                        </span>{' '}
-                        • {new Date(c.createdAt).toLocaleString()}
-                      </div>
-                      {canEditComment(c) && (
-                        <button
-                          className="rounded border border-neutral-700 px-2 py-0.5 hover:bg-neutral-900"
-                          onClick={() => deleteComment(cKey, c.id)}
-                        >
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                    <div className="mt-1 text-sm text-neutral-200">
-                      {c.text}
-                    </div>
-                    {c.imageUrl && (
-                      <img
-                        src={c.imageUrl}
-                        alt=""
-                        className="mt-2 max-h-60 w-auto rounded-md border border-neutral-800"
-                      />
-                    )}
-                  </div>
-                ))}
+              <div className="flex items-center gap-2 text-[11px]">
+                {isFollowed && (
+                  <span className="rounded-full border border-cyan-500/60 bg-cyan-500/10 px-2 py-0.5 text-cyan-200">
+                    Added
+                  </span>
+                )}
+                {isMine && (
+                  <span className="rounded-full border border-neutral-600 bg-neutral-800 px-2 py-0.5 text-neutral-200">
+                    You
+                  </span>
+                )}
               </div>
-            ) : null}
+            </header>
+
+            {/* Title & text */}
+            <h2 className="text-sm font-semibold text-white">{p.title}</h2>
+            {p.desc && (
+              <p className="mt-1 text-xs leading-relaxed text-neutral-200">
+                {p.desc}
+              </p>
+            )}
+
+            {/* Image */}
+            {p.imageUrl && (
+              <button
+                type="button"
+                onClick={() => onOpenImage(p.imageUrl!)}
+                className="mt-3 block overflow-hidden rounded-md border border-neutral-800 bg-black/50"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={p.imageUrl}
+                  alt={p.title}
+                  className="max-h-72 w-full object-cover"
+                />
+              </button>
+            )}
+
+            {/* Link */}
+            {p.linkUrl && linkLabel && (
+              <div className="mt-2">
+                <a
+                  href={p.linkUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-full border border-cyan-500/70 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/20"
+                >
+                  {linkLabel}
+                </a>
+              </div>
+            )}
+
+            {/* Footer: comments + edit/delete */}
+            <footer className="mt-3 flex items-center justify-between gap-3 text-[11px]">
+              <button
+                type="button"
+                onClick={() => onOpenComment(key)}
+                className="inline-flex items-center gap-1 rounded-full border border-neutral-700 bg-neutral-900 px-2 py-1 text-neutral-300 hover:border-cyan-500 hover:text-cyan-200"
+              >
+                <MessageCircle size={13} />
+                <span>
+                  {postComments.length === 0
+                    ? 'Add comment'
+                    : `${postComments.length} comment${
+                        postComments.length === 1 ? '' : 's'
+                      }`}
+                </span>
+              </button>
+
+              {canEditPost(p) && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onEditPost(p.id, {})}
+                    className="text-neutral-400 hover:text-neutral-100"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeletePost(p.id)}
+                    className="text-red-400 hover:text-red-200"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
+            </footer>
           </article>
         );
       })}
-      {posts.length === 0 && (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">
-          No posts yet.
-        </div>
-      )}
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+

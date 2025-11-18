@@ -2,20 +2,31 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+export type SocialLink = {
+  id: string;
+  label: string; // e.g. 'TikTok'
+  url: string;
+};
+
 export type UserMini = {
   id: string;
   name: string;
+  bio?: string;
+  country?: string;
+  avatarUrl?: string;
+  socialLinks?: SocialLink[];
+
+  // legacy fields kept so old data doesn’t break anything
   team?: string;
   location?: string;
-  bio?: string;
   website?: string;
-  avatarUrl?: string;
 };
 
 type Props = {
   open: boolean;
   user?: UserMini;
   stars?: number;
+  currentUserId: string;
 
   onGiveStar?: (userId: string) => void;
   onFollow?: (userId: string) => void;
@@ -32,10 +43,21 @@ type Props = {
   variant?: 'center' | 'right';
 };
 
+const SOCIAL_OPTIONS = [
+  'YouTube',
+  'TikTok',
+  'Instagram',
+  'Facebook',
+  'X',
+  'Reddit',
+  'Other',
+];
+
 export default function UserDrawer({
   open,
   user,
   stars = 0,
+  currentUserId,
   onGiveStar,
   onFollow,
   onMessage,
@@ -45,22 +67,59 @@ export default function UserDrawer({
   onClose,
   variant = 'center',
 }: Props) {
-  const u = user ?? { id: 'u_current', name: 'You' };
+  const u: UserMini = user ?? { id: currentUserId, name: 'You' };
+  const isOwner = u.id === currentUserId;
 
   // editable fields (local state)
   const [name, setName] = useState(u.name ?? '');
-  const [place, setPlace] = useState(u.location ?? '');
   const [bio, setBio] = useState(u.bio ?? '');
-  const [website, setWebsite] = useState(u.website ?? '');
+  const [country, setCountry] = useState(u.country ?? '');
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(u.avatarUrl);
+
+  const [socialLinks, setSocialLinks] = useState<SocialLink[]>(
+    u.socialLinks ?? [],
+  );
+
+  const [newSocialLabel, setNewSocialLabel] = useState<string>('TikTok');
+  const [newSocialUrl, setNewSocialUrl] = useState<string>('');
+
+  // countries for autocomplete
+  const [countries, setCountries] = useState<
+    Array<{ code: string; name: string }>
+  >([]);
+
+  useEffect(() => {
+    let ok = true;
+    fetch('/countries.json')
+      .then((r) => r.json())
+      .then((list) => {
+        if (!ok) return;
+        if (Array.isArray(list)) {
+          setCountries(list);
+        }
+      })
+      .catch(() => {
+        if (!ok) return;
+        setCountries([
+          { code: 'GB', name: 'United Kingdom' },
+          { code: 'US', name: 'United States' },
+          { code: 'CA', name: 'Canada' },
+          { code: 'AU', name: 'Australia' },
+        ]);
+      });
+
+    return () => {
+      ok = false;
+    };
+  }, []);
 
   // hydrate when "user" changes
   useEffect(() => {
     setName(u.name ?? '');
-    setPlace(u.location ?? '');
     setBio(u.bio ?? '');
-    setWebsite(u.website ?? '');
+    setCountry(u.country ?? '');
     setAvatarUrl(u.avatarUrl);
+    setSocialLinks(u.socialLinks ?? []);
   }, [u.id]);
 
   // esc to close
@@ -73,10 +132,11 @@ export default function UserDrawer({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  // avatar upload (click avatar -> file picker -> auto cover)
+  // avatar upload
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   function handleAvatarClick() {
+    if (!isOwner) return;
     fileInputRef.current?.click();
   }
 
@@ -85,12 +145,45 @@ export default function UserDrawer({
     if (!f) return;
     const reader = new FileReader();
     reader.onload = () => {
-      // Data URL preview; object-fit: cover in img will auto center/crop visually
       if (typeof reader.result === 'string') setAvatarUrl(reader.result);
     };
     reader.readAsDataURL(f);
-    // clear for re-upload if same file picked again later
     e.target.value = '';
+  }
+
+  function handleAddSocialLink() {
+    const urlRaw = newSocialUrl.trim();
+    if (!urlRaw) return;
+
+    const url =
+      urlRaw.startsWith('http://') || urlRaw.startsWith('https://')
+        ? urlRaw
+        : `https://${urlRaw}`;
+
+    setSocialLinks((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        label: newSocialLabel,
+        url,
+      },
+    ]);
+    setNewSocialUrl('');
+  }
+
+  function handleRemoveSocialLink(id: string) {
+    setSocialLinks((prev) => prev.filter((l) => l.id !== id));
+  }
+
+  function handleSave() {
+    onSave?.({
+      ...u,
+      name: name.trim() || 'User',
+      bio: bio.trim() || undefined,
+      country: country.trim() || undefined,
+      avatarUrl,
+      socialLinks: socialLinks.length ? socialLinks : undefined,
+    });
   }
 
   if (!open) return null;
@@ -106,12 +199,16 @@ export default function UserDrawer({
         <button
           type="button"
           onClick={handleAvatarClick}
-          title="Change profile photo"
+          title={isOwner ? 'Click to change profile photo' : 'Profile photo'}
           className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-neutral-800 bg-neutral-900"
         >
           {avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt={u.name || 'avatar'} className="h-full w-full object-cover" />
+            <img
+              src={avatarUrl}
+              alt={u.name || 'avatar'}
+              className="h-full w-full object-cover"
+            />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-xs text-neutral-500">
               IMG
@@ -128,17 +225,23 @@ export default function UserDrawer({
         />
 
         <div className="min-w-0">
-          <div className="truncate text-sm text-neutral-400">Editing Profile</div>
-          <div className="truncate text-lg font-semibold">{u.name || 'You'}</div>
+          <div className="truncate text-xs text-neutral-400">
+            {isOwner ? 'Editing Profile' : 'Profile'}
+          </div>
+          <div className="truncate text-lg font-semibold">
+            {u.name || 'User'}
+          </div>
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          <button
-            className="rounded-md border border-yellow-600/60 bg-yellow-500/10 px-2 py-1 text-sm text-yellow-300 hover:bg-yellow-500/20"
-            onClick={() => onGiveStar?.(u.id)}
-          >
-            Star {stars > 0 ? `(${stars})` : ''}
-          </button>
+          {!isOwner && (
+            <button
+              className="rounded-md border border-yellow-600/60 bg-yellow-500/10 px-2 py-1 text-xs text-yellow-300 hover:bg-yellow-500/20"
+              onClick={() => onGiveStar?.(u.id)}
+            >
+              ★ {stars > 0 ? `(${stars})` : ''}
+            </button>
+          )}
           <button
             onClick={onClose}
             className="rounded-md border border-neutral-700 px-2.5 py-1.5 text-sm hover:bg-neutral-900"
@@ -149,93 +252,251 @@ export default function UserDrawer({
       </div>
 
       {/* Body */}
-      <div className="max-h-[80vh] overflow-y-auto px-4 pb-5 pt-4">
-        <div className="grid gap-3">
-          <label className="grid gap-1">
-            <span className="text-xs text-neutral-400">Display name</span>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none"
-              placeholder="Your display name"
-            />
-          </label>
+      <div className="max-h-[80vh] overflow-y-auto px-4 pb-5 pt-4 text-sm">
+        {/* Owner view (editable) */}
+        {isOwner ? (
+          <div className="grid gap-3">
+            {/* Display name */}
+            <label className="grid gap-1">
+              <span className="text-xs text-neutral-400">Display name</span>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none"
+                placeholder="Your display name"
+              />
+            </label>
 
-          <label className="grid gap-1">
-            <span className="text-xs text-neutral-400">Location</span>
-            <input
-              value={place}
-              onChange={(e) => setPlace(e.target.value)}
-              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none"
-              placeholder="City, Country"
-            />
-          </label>
+            {/* Bio */}
+            <label className="grid gap-1">
+              <span className="text-xs text-neutral-400">Bio</span>
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                className="min-h-[100px] rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none"
+                placeholder="A short introduction…"
+              />
+            </label>
 
-          <label className="grid gap-1">
-            <span className="text-xs text-neutral-400">Website</span>
-            <input
-              value={website}
-              onChange={(e) => setWebsite(e.target.value)}
-              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none"
-              placeholder="https://example.com"
-              inputMode="url"
-            />
-          </label>
+            {/* Social links manager */}
+            <div className="grid gap-2">
+              <span className="text-xs text-neutral-400">Social links</span>
 
-          <label className="grid gap-1">
-            <span className="text-xs text-neutral-400">Bio</span>
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              className="min-h-[100px] rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none"
-              placeholder="A short introduction…"
-            />
-          </label>
+              {/* Existing links */}
+              {socialLinks.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {socialLinks.map((link) => (
+                    <span
+                      key={link.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-cyan-500/60 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-200"
+                    >
+                      <span>{link.label}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSocialLink(link.id)}
+                        className="text-[11px] text-neutral-300 hover:text-white"
+                        title="Remove"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
 
-          <div className="flex flex-wrap items-center gap-2 pt-2">
-            <button
-              onClick={() => onFollow?.(u.id)}
-              className="rounded-md border border-cyan-500/70 bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-300 hover:bg-cyan-500/20"
-            >
-              Follow
-            </button>
-            <button
-              onClick={() => onMessage?.(u.id)}
-              className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:bg-neutral-900"
-            >
-              Message
-            </button>
-            <div className="ml-auto flex items-center gap-2">
+              {/* Add link row */}
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={newSocialLabel}
+                  onChange={(e) => setNewSocialLabel(e.target.value)}
+                  className="rounded-md border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs"
+                >
+                  {SOCIAL_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={newSocialUrl}
+                  onChange={(e) => setNewSocialUrl(e.target.value)}
+                  placeholder="Paste profile URL"
+                  className="min-w-[180px] flex-1 rounded-md border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddSocialLink}
+                  className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-300 hover:bg-cyan-500/20"
+                >
+                  Add link
+                </button>
+              </div>
+            </div>
+
+            {/* Country (autocomplete) */}
+            <label className="grid gap-1">
+              <span className="text-xs text-neutral-400">Country</span>
+              <input
+                list="profile-countries"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                placeholder="Country"
+                className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none"
+              />
+              <datalist id="profile-countries">
+                {countries.map((c) => (
+                  <option
+                    key={c.code}
+                    value={c.name}
+                    label={`${c.name} (${c.code})`}
+                  />
+                ))}
+              </datalist>
+            </label>
+
+            {/* Profile photo (explicit picker) */}
+            <div className="grid gap-1">
+              <span className="text-xs text-neutral-400">Profile photo</span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarFile}
+                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-white"
+              />
+              {avatarUrl && (
+                <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={avatarUrl}
+                    alt="preview"
+                    className="max-h-48 w-auto rounded-md border border-neutral-800"
+                  />
+                </div>
+              )}
+              <p className="mt-1 text-xs text-neutral-500">
+                You can also click the avatar at the top to change your photo.
+              </p>
+            </div>
+
+            {/* Owner buttons */}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-800 pt-3">
               <button
+                type="button"
                 onClick={() =>
-                  onSave?.({
-                    ...u,
-                    name: name.trim(),
-                    location: place.trim(),
-                    website: website.trim(),
-                    bio: bio.trim(),
-                    avatarUrl: avatarUrl, // persist chosen avatar
-                  })
+                  window.confirm(
+                    'Account deletion will be added in a later version.',
+                  ) && undefined
                 }
-                className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-300 hover:bg-cyan-500/20"
+                className="rounded-md border border-red-500/70 bg-red-500/10 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/20"
               >
-                Save
+                Delete account
               </button>
-              <button
-                onClick={() => onReport?.(u.id)}
-                className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:bg-neutral-900"
-              >
-                Report
-              </button>
-              <button
-                onClick={() => onBlock?.(u.id)}
-                className="rounded-md border border-red-500/70 bg-red-500/10 px-3 py-1.5 text-sm text-red-300 hover:bg-red-500/20"
-              >
-                Block
-              </button>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-md border border-neutral-700 px-3 py-1.5 text-xs hover:bg-neutral-900"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-300 hover:bg-cyan-500/20"
+                >
+                  Save profile
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          /* Viewer view (read-only) */
+          <div className="grid gap-3 text-sm">
+            <div>
+              <div className="text-xs text-neutral-500">Display name</div>
+              <div className="mt-0.5 text-base font-semibold">
+                {u.name || 'User'}
+              </div>
+            </div>
+
+            {u.bio && (
+              <div>
+                <div className="text-xs text-neutral-500">Bio</div>
+                <p className="mt-0.5 text-sm text-neutral-200 whitespace-pre-line">
+                  {u.bio}
+                </p>
+              </div>
+            )}
+
+            {u.country && (
+              <div>
+                <div className="text-xs text-neutral-500">Country</div>
+                <div className="mt-0.5 text-sm text-neutral-200">
+                  {u.country}
+                </div>
+              </div>
+            )}
+
+            {u.socialLinks && u.socialLinks.length > 0 && (
+              <div>
+                <div className="text-xs text-neutral-500">Links</div>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {u.socialLinks.map((link) => (
+                    <a
+                      key={link.id}
+                      href={link.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center rounded-full border border-cyan-500/60 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-200 hover:bg-cyan-500/20"
+                    >
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Viewer buttons: Add / Message / Block / Report */}
+<div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-800 pt-3">
+  <div className="flex gap-2">
+    <button
+      type="button"
+      onClick={() => onFollow?.(u.id)}
+      className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-300 hover:bg-cyan-500/20"
+    >
+      Add
+    </button>
+
+    <button
+      type="button"
+      onClick={() => onMessage?.(u.id)}
+      className="rounded-md border border-neutral-500 bg-neutral-800 px-3 py-1.5 text-xs hover:bg-neutral-900"
+    >
+      Message
+    </button>
+  </div>
+
+  <div className="flex gap-2">
+    <button
+      type="button"
+      onClick={() => onReport?.(u.id)}
+      className="rounded-md border border-neutral-700 px-3 py-1.5 text-xs hover:bg-neutral-900"
+    >
+      Report
+    </button>
+    <button
+      type="button"
+      onClick={() => onBlock?.(u.id)}
+      className="rounded-md border border-red-500/70 bg-red-500/10 px-3 py-1.5 text-xs text-red-300 hover:bg-red-500/20"
+    >
+      Block
+    </button>
+  </div>
+</div>
+
+          </div>
+        )}
       </div>
     </div>
   );
@@ -262,6 +523,8 @@ export default function UserDrawer({
     </>
   );
 }
+
+
 
 
 

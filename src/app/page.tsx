@@ -6,334 +6,56 @@ import React, {
   useMemo,
   useRef,
   useState,
-  createContext,
-  useContext,
 } from 'react';
-import ParaverseTopBar, { TabKey } from '@/components/ParaverseTopBar';
+
+import {
+  ScopeProvider,
+  useScope,
+  useCountries,
+} from '@/components/ParaverseScope';
+
+import type {
+  DemoPost,
+  MarketplaceItem,
+  EventItem,
+  CollabItem,
+  Comment,
+  NotificationItem,
+  DMMessage,
+  DMThread,
+  SocialLink,
+} from '@/types/paraverse';
+
+import type { TabKey } from '@/components/ParaverseTopBar';
+import type { LocationData, LiveMapHandle } from '@/components/LiveMap';
+import type { UserMini } from '@/components/UserDrawer';
+
+import MapShell from '@/components/MapShell';
 import ParaverseHeader from '@/components/ParaverseHeader';
-import HomeFeed from '@/components/feed/HomeFeed';
-import LiveMap, { LocationData, LiveMapHandle } from '@/components/LiveMap';
-import LocationDrawer from '@/components/LocationDrawer';
-import UserDrawer, { UserMini } from '@/components/UserDrawer';
-import MapActions from '@/components/MapActions';
-import EventsFeed, { EventsFeedEvent } from '@/components/EventsFeed';
-import MarketplaceFeed from '@/components/MarketplaceFeed';
-import CollaborationFeed from '@/components/CollaborationFeed';
 
+import HomeSection from '@/components/sections/HomeSection';
+import EventsSection from '@/components/sections/EventsSection';
+import MarketplaceSection from '@/components/sections/MarketplaceSection';
+import CollabSection from '@/components/sections/CollabSection';
+import LocationsSection from '@/components/sections/LocationsSection';
+import ProfileHubSection from '@/components/sections/ProfileHubSection';
 
+import LocationForm from '@/components/modals/LocationForm';
+import PostForm from '@/components/modals/PostForm';
+import EventForm from '@/components/modals/EventForm';
+import MarketplaceForm from '@/components/MarketplaceForm';
+import CollaborationForm from '@/components/CollaborationForm';
+import CommentForm from '@/components/modals/CommentForm';
 
-/* =========================== Country Scope Context =========================== */
+import { useImagePreview } from '@/hooks/useImagePreview';
+import Modal from '@/components/Modal';
+import DMModal from '@/components/modals/DMModal';
+import { geocodePostal } from '@/lib/geocodePostal';
+import { minutesAgo, formatShortDate } from '@/lib/dateUtils';
 
-type ScopeCtx = { country: string; setCountry: (c: string) => void };
-const Scope = createContext<ScopeCtx | null>(null);
-
-function ScopeProvider({ children }: { children: React.ReactNode }) {
-  const initial = useMemo(() => {
-    if (typeof window === 'undefined') return 'GB';
-    const url = new URL(window.location.href);
-    const q = url.searchParams.get('country');
-    const saved = localStorage.getItem('ps.country');
-    const guess = (navigator.language || 'en-GB').split('-').pop() || 'GB';
-    return (q || saved || guess).toUpperCase();
-  }, []);
-  const [country, setCountryState] = useState(initial);
-
-  const setCountry = (c: string) => {
-    const code = (c || 'GB').toUpperCase();
-    setCountryState(code);
-    try {
-      localStorage.setItem('ps.country', code);
-      const u = new URL(window.location.href);
-      u.searchParams.set('country', code);
-      history.replaceState({}, '', u.toString());
-    } catch {}
-  };
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('ps.country', country);
-    } catch {}
-  }, [country]);
-
-  return <Scope.Provider value={{ country, setCountry }}>{children}</Scope.Provider>;
-}
-
-function useScope() {
-  const v = useContext(Scope);
-  if (!v) throw new Error('useScope used outside provider');
-  return v;
-}
-
-/* ============================== Country helpers ============================== */
-
-function useCountries() {
-  const [countries, setCountries] = useState<
-    Array<{ code: string; name: string; region?: string }>
-  >([]);
-  useEffect(() => {
-    let ok = true;
-    fetch('/countries.json')
-      .then((r) => r.json())
-      .then((list) => {
-        if (ok) setCountries(Array.isArray(list) ? list : []);
-      })
-      .catch(() => {
-        setCountries([
-          { code: 'EU', name: 'Europe (multi-country)', region: 'Region' },
-          { code: 'US', name: 'United States', region: 'Americas' },
-          { code: 'GB', name: 'United Kingdom', region: 'Europe' },
-          { code: 'CA', name: 'Canada', region: 'Americas' },
-          { code: 'AU', name: 'Australia', region: 'Oceania' },
-        ]);
-      });
-    return () => {
-      ok = false;
-    };
-  }, []);
-  return countries;
-}
-
-function labelFor(code: string, all: Array<{ code: string; name: string }>) {
-  const hit = all.find((c) => c.code.toUpperCase() === code.toUpperCase());
-  return hit ? `${hit.name} (${hit.code})` : code.toUpperCase();
-}
-
-function CountrySelect() {
-  const { country, setCountry } = useScope();
-  const countries = useCountries();
-
-  const options = useMemo(() => {
-    if (!countries.length) return [];
-    const eu = countries.filter((c) => c.code.toUpperCase() === 'EU');
-    const rest = countries
-      .filter((c) => c.code.toUpperCase() !== 'EU')
-      .sort((a, b) => a.name.localeCompare(b.name));
-    return [...eu, ...rest];
-  }, [countries]);
-
-  function normalizeToCode(input: string) {
-    const trimmed = (input || '').trim();
-    if (!trimmed) return country;
-
-    const exactCode = options.find(
-      (o) => o.code.toUpperCase() === trimmed.toUpperCase(),
-    );
-    if (exactCode) return exactCode.code;
-
-    const matchParen = trimmed.match(/\(([A-Za-z]{2,3})\)\s*$/);
-    if (matchParen) {
-      const c = matchParen[1].toUpperCase();
-      if (options.some((o) => o.code.toUpperCase() === c)) return c;
-    }
-
-    const byName = options.find(
-      (o) => o.name.toLowerCase() === trimmed.toLowerCase(),
-    );
-    if (byName) return byName.code;
-
-    return country;
-  }
-
-  const [inputValue, setInputValue] = useState('');
-
-  useEffect(() => {
-    setInputValue(labelFor(country, options));
-  }, [country, options]);
-
-  return (
-    <div className="inline-flex items-center gap-2 rounded-full bg-zinc-800/60 px-2 py-1 text-xs">
-      <span className="opacity-70">Show posts from</span>
-      <input
-        list="countries"
-        className="bg-transparent text-neutral-100 outline-none placeholder-neutral-400"
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
-        onBlur={() => setCountry(normalizeToCode(inputValue))}
-        placeholder="Type a country…"
-      />
-      <datalist id="countries">
-        {options.map((o) => (
-          <option key={o.code} value={`${o.name} (${o.code})`} />
-        ))}
-      </datalist>
-    </div>
-  );
-}
-
-const byCountry =
-  <T extends { countryCode?: string }>(code: string) =>
-  (x: T) =>
-    (x.countryCode?.toUpperCase() || '') === code;
-
-/* ================================= UI bits ================================= */
-
-function TranslatePost({ text }: { text?: string }) {
-  const [showTranslated, setShowTranslated] = useState(false);
-  if (!text) return null;
-  return (
-    <div className="mt-1">
-      <p className="text-sm text-neutral-300">{showTranslated ? text : text}</p>
-      <button
-        type="button"
-        onClick={() => setShowTranslated((v) => !v)}
-        className="mt-1 text-xs text-cyan-300 hover:underline"
-      >
-        {showTranslated ? 'Show original' : 'Translate'}
-      </button>
-    </div>
-  );
-}
-
-function StarBadge({ value, onClick }: { value: number; onClick?: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="inline-flex items-center gap-1 rounded-full border border-yellow-600/60 bg-yellow-500/10 px-2 py-0.5 text-xs text-yellow-200 hover:bg-yellow-500/20"
-      title="Give a star"
-    >
-      <span>★</span>{' '}
-      <span className="min-w-[1.2rem] text-center">{value}</span>
-    </button>
-  );
-}
-
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active?: boolean;
-  onClick?: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-sm ${
-        active
-          ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
-          : 'border-neutral-700 text-neutral-300 hover:border-neutral-500'
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Modal({
-  open,
-  onClose,
-  children,
-  maxW = 'max-w-xl',
-}: {
-  open: boolean;
-  onClose: () => void;
-  children: React.ReactNode;
-  maxW?: string;
-}) {
-  if (!open) return null;
-  return (
-    <>
-      <div className="fixed inset-0 z-[90] bg-black/60" onClick={onClose} />
-      <div
-        className={`fixed left-1/2 top-1/2 z-[91] w-[92vw] -translate-x-1/2 -translate-y-1/2 ${maxW} rounded-xl border border-neutral-800 bg-neutral-950 p-4`}
-      >
-        {children}
-      </div>
-    </>
-  );
-}
-
-function SectionDisclaimer({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mb-4 rounded-lg border border-yellow-700/40 bg-yellow-900/10 px-3 py-2 text-sm text-yellow-200">
-      {children}
-    </div>
-  );
-}
-
-/* ================================== Types ================================== */
-
-type DemoPost = {
-  id: string;
-  type: 'Post';
-  title: string;
-  desc: string;
-  locationId?: string;
-  imageUrl?: string;
-  linkUrl?: string;
-  authorId: string;
-  authorName: string;
-  tagUserIds?: string[];
-  createdAt: number;
-};
-
-type MarketplaceItem = {
-  id: string;
-  kind: 'Product' | 'Service';
-  title: string;
-  description: string;
-  price?: number;
-  locationText?: string;
-  imageUrl?: string;
-  contactOrLink?: string;
-  createdAt: number;
-  postedBy: { id: string; name: string };
-  countryCode?: string;
-  postalCode?: string;
-};
-
-type EventItem = EventsFeedEvent;
-
-
-type CollabItem = {
-  id: string;
-  title: string;
-  description?: string;
-  dateISO?: string;
-  locationText?: string;
-  priceText?: string;
-  contact?: string;
-  imageUrl?: string;
-  createdAt: number;
-  postedBy: { id: string; name: string };
-  countryCode?: string;
-  postalCode?: string;
-};
-
-/* =============================== Image preview ============================== */
-
-function useImagePreview() {
-  const [url, setUrl] = useState<string | undefined>(undefined);
-  const [name, setName] = useState<string | undefined>(undefined);
-
-  function onChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0] ?? null;
-    if (url) URL.revokeObjectURL(url);
-    if (!f) {
-      setUrl(undefined);
-      setName(undefined);
-      return;
-    }
-    setUrl(URL.createObjectURL(f));
-    setName(f.name);
-  }
-  function clear() {
-    if (url) URL.revokeObjectURL(url);
-    setUrl(undefined);
-    setName(undefined);
-  }
-  useEffect(
-    () => () => {
-      if (url) URL.revokeObjectURL(url);
-    },
-    [url],
-  );
-
-  return { url, name, onChange, clear };
-}
-
-/* ================================ Page Inner ================================ */
+/* ========================================================================== */
+/*  MAIN PAGE WRAPPER                                                         */
+/* ========================================================================== */
 
 export default function Page() {
   return (
@@ -343,7 +65,15 @@ export default function Page() {
   );
 }
 
+/* ========================================================================== */
+/*  PAGE INNER                                                                */
+/* ========================================================================== */
+
 function PageInner() {
+  /* ------------------------------------------------------------------------ */
+  /*  USER                                                                    */
+  /* ------------------------------------------------------------------------ */
+
   const [currentUser, setCurrentUser] = useState<{
     id: string;
     name: string;
@@ -351,128 +81,368 @@ function PageInner() {
   }>({
     id: 'u_current',
     name: 'You',
-    avatarUrl: undefined,
   });
 
   const [usersById, setUsersById] = useState<Record<string, UserMini>>({
     u_current: { id: 'u_current', name: 'You' },
   });
 
-  const [tab, setTab] = useState<string>('home');
+  /* ------------------------------------------------------------------------ */
+  /*  GLOBAL IMAGE LIGHTBOX                                                   */
+  /* ------------------------------------------------------------------------ */
+
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+
+  /* ------------------------------------------------------------------------ */
+  /*  TABS, MAP, DRAWERS                                                      */
+  /* ------------------------------------------------------------------------ */
+
+  const [tab, setTab] = useState<TabKey>('home');
   const [searchQuery, setSearchQuery] = useState('');
   const mapRef = useRef<LiveMapHandle>(null);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerLoc, setDrawerLoc] = useState<LocationData | undefined>(undefined);
+  const [drawerLoc, setDrawerLoc] = useState<LocationData | undefined>(
+    undefined,
+  );
+  const [drawerKind, setDrawerKind] = useState<
+    'HAUNTING' | 'EVENT' | 'COLLAB' | null
+  >(null);
 
   const [userDrawerOpen, setUserDrawerOpen] = useState(false);
   const [drawerUser, setDrawerUser] = useState<UserMini | undefined>(undefined);
 
-  const [userStars, setUserStars] = useState<Record<string, number>>({});
-  const [locationStars, setLocationStars] = useState<Record<string, number>>({});
-  const [postStars, setPostStars] = useState<Record<string, number>>({});
-  const [eventStars, setEventStars] = useState<Record<string, number>>({});
-  const [marketStars, setMarketStars] = useState<Record<string, number>>({});
-  const [collabStars, setCollabStars] = useState<Record<string, number>>({});
+  /* ------------------------------------------------------------------------ */
+  /*  STAR COUNTS                                                             */
+  /* ------------------------------------------------------------------------ */
 
-  const inc = (setter: (f: (p: any) => any) => void, id: string) =>
-    setter((prev: Record<string, number>) => ({
+  const [locationStars, setLocationStars] = useState<Record<string, number>>(
+    {},
+  );
+  const [starredLocations, setStarredLocations] = useState<string[]>([]);
+
+  const giveLocationStar = (locId: string) => {
+    setStarredLocations((prev) => {
+      if (prev.includes(locId)) return prev;
+
+      setLocationStars((current) => ({
+        ...current,
+        [locId]: (current[locId] ?? 0) + 1,
+      }));
+
+      return [...prev, locId];
+    });
+  };
+
+  const [userStars, setUserStars] = useState<Record<string, number>>({});
+  const giveUserStar = (userId: string) =>
+    setUserStars((prev) => ({
       ...prev,
-      [id]: (prev[id] ?? 0) + 1,
+      [userId]: (prev[userId] ?? 0) + 1,
     }));
 
-  const giveUserStar = (userId: string) =>
-    setUserStars((prev) => ({ ...prev, [userId]: (prev[userId] ?? 0) + 1 }));
-  const giveLocationStar = (locId: string) =>
-    inc(setLocationStars as any, locId);
-  const givePostStar = (id: string) => inc(setPostStars, id);
-  const giveEventStar = (id: string) => inc(setEventStars, id);
-  const giveMarketStar = (id: string) => inc(setMarketStars, id);
-  const giveCollabStar = (id: string) => inc(setCollabStars, id);
+  /* ------------------------------------------------------------------------ */
+  /*  DATA ARRAYS                                                             */
+  /* ------------------------------------------------------------------------ */
 
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [posts, setPosts] = useState<DemoPost[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [market, setMarket] = useState<MarketplaceItem[]>([]);
   const [collabs, setCollabs] = useState<CollabItem[]>([]);
-  const [marketFilter, setMarketFilter] = useState<'All' | 'Product' | 'Service'>(
-    'All',
-  );
 
-  const [comments, setComments] = useState<Record<string, any[]>>({});
-  function addComment(key: string, c: any) {
+  function updateEvent(id: string, patch: Partial<EventItem>) {
+    setEvents((prev) =>
+      prev.map((ev) => (ev.id === id ? { ...ev, ...patch } : ev)),
+    );
+  }
+
+  function deleteEvent(id: string) {
+    setEvents((prev) => prev.filter((ev) => ev.id !== id));
+  }
+
+  const [editingListing, setEditingListing] =
+    useState<MarketplaceItem | null>(null);
+
+  const [marketFilter, setMarketFilter] = useState<
+    'All' | 'Product' | 'Service'
+  >('Product');
+
+  /* ------------------------------------------------------------------------ */
+  /*  COMMENTS SYSTEM                                                         */
+  /* ------------------------------------------------------------------------ */
+
+  const [comments, setComments] = useState<Record<string, Comment[]>>({});
+
+  function addComment(key: string, c: Comment) {
     setComments((prev) => ({ ...prev, [key]: [c, ...(prev[key] ?? [])] }));
   }
-  function canEditComment(c: any) {
-    return c.authorId === currentUser.id;
+
+  function updateComment(key: string, id: string, patch: Partial<Comment>) {
+    setComments((prev) => {
+      const arr = prev[key] ?? [];
+      return {
+        ...prev,
+        [key]: arr.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+      };
+    });
   }
+
   function deleteComment(key: string, id: string) {
     setComments((prev) => ({
       ...prev,
-      [key]: (prev[key] ?? []).filter((x: any) => x.id !== id),
+      [key]: (prev[key] ?? []).filter((x) => x.id !== id),
     }));
+  }
+
+  function canEditComment(c: Comment) {
+    return c.authorId === currentUser.id;
   }
 
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentKey, setCommentKey] = useState<string | null>(null);
+  const [activeReplyParentId, setActiveReplyParentId] = useState<string | null>(
+    null,
+  );
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+
   const [commentText, setCommentText] = useState('');
   const [commentTags, setCommentTags] = useState<string[]>([]);
+
   const {
     url: cImg,
     name: cImgName,
     onChange: cImgChange,
     clear: cImgClear,
   } = useImagePreview();
-  function openComment(forKey: string) {
+
+  function openComment(forKey: string, parentId?: string) {
     setCommentKey(forKey);
+    setActiveReplyParentId(parentId ?? null);
+    setEditingCommentId(null);
     setCommentOpen(true);
-  }
-  function submitComment() {
-    if (!commentKey) return;
-    const c = {
-      id: crypto.randomUUID(),
-      authorId: currentUser.id,
-      authorName: currentUser.name,
-      text: commentText.trim(),
-      imageUrl: cImg,
-      tagUserIds: commentTags,
-      createdAt: Date.now(),
-    };
-    addComment(commentKey, c);
-    setCommentOpen(false);
     setCommentText('');
     setCommentTags([]);
     cImgClear();
   }
 
+  function openEditComment(forKey: string, commentId: string) {
+    const arr = comments[forKey] ?? [];
+    const target = arr.find((c) => c.id === commentId) || null;
+
+    setCommentKey(forKey);
+    setActiveReplyParentId(null);
+    setEditingCommentId(commentId);
+
+    if (target) {
+      setCommentText(target.text ?? '');
+      setCommentTags(target.tagUserIds ?? []);
+    } else {
+      setCommentText('');
+      setCommentTags([]);
+    }
+
+    cImgClear();
+    setCommentOpen(true);
+  }
+
+  function resetCommentState() {
+    setCommentOpen(false);
+    setCommentKey(null);
+    setActiveReplyParentId(null);
+    setEditingCommentId(null);
+    setCommentTags([]);
+    setCommentText('');
+    cImgClear();
+  }
+
+  function submitComment() {
+    if (!commentKey) return;
+
+    const trimmed = commentText.trim();
+    if (!trimmed && !cImg) return;
+
+    if (editingCommentId) {
+      updateComment(commentKey, editingCommentId, {
+        text: trimmed,
+        imageUrl: cImg,
+        tagUserIds: commentTags,
+      });
+    } else {
+      addComment(commentKey, {
+        id: crypto.randomUUID(),
+        text: trimmed,
+        authorId: currentUser.id,
+        authorName: currentUser.name,
+        createdAt: Date.now(),
+        parentId: activeReplyParentId,
+        imageUrl: cImg,
+        tagUserIds: commentTags,
+      });
+    }
+
+    resetCommentState();
+  }
+
+  const locationReviews = useMemo(() => {
+    if (!drawerLoc) return [];
+    const reviewKey = `loc:${drawerLoc.id}`;
+    return comments[reviewKey] ?? [];
+  }, [drawerLoc, comments]);
+
+  /* ------------------------------------------------------------------------ */
+  /*  DM SYSTEM                                                               */
+  /* ------------------------------------------------------------------------ */
+
+  const [dmOpen, setDmOpen] = useState(false);
+  const [dmRecipientId, setDmRecipientId] = useState<string | null>(null);
+  const [dmRecipientName, setDmRecipientName] = useState<string | null>(null);
+  const [dmText, setDmText] = useState('');
+
+  function markThreadRead(fromUserId: string) {
+    setDmThreads((prev) =>
+      prev.map((t) => {
+        if (t.otherUser.id !== fromUserId) return t;
+        return {
+          ...t,
+          messages: t.messages.map((m) =>
+            m.fromUserId === fromUserId && m.toUserId === currentUser.id
+              ? { ...m, read: true }
+              : m,
+          ),
+        };
+      }),
+    );
+  }
+
+  function addDmMessage(toUserId: string, text: string) {
+    const nowIso = new Date().toISOString();
+
+    setDmThreads((prev) => {
+      let found = false;
+
+      const updated = prev.map((t) => {
+        if (t.otherUser.id !== toUserId) return t;
+        found = true;
+        const msg: DMMessage = {
+          id: crypto.randomUUID(),
+          threadId: t.id,
+          fromUserId: currentUser.id,
+          toUserId,
+          text,
+          createdAt: nowIso,
+          read: false,
+        };
+        return {
+          ...t,
+          lastMessageAt: nowIso,
+          messages: [...t.messages, msg],
+        };
+      });
+
+      if (found) return updated;
+
+      const threadId = crypto.randomUUID();
+      const other = usersById[toUserId] ?? { id: toUserId, name: 'User' };
+      const msg: DMMessage = {
+        id: crypto.randomUUID(),
+        threadId,
+        fromUserId: currentUser.id,
+        toUserId,
+        text,
+        createdAt: nowIso,
+        read: false,
+      };
+
+      return [
+        ...updated,
+        {
+          id: threadId,
+          otherUser: {
+            id: other.id,
+            name: other.name,
+            avatarUrl: other.avatarUrl,
+          },
+          lastMessageAt: nowIso,
+          messages: [msg],
+        },
+      ];
+    });
+  }
+
+  function openDM(userId: string) {
+    const u = usersById[userId];
+    setDmRecipientId(userId);
+    setDmRecipientName(u?.name ?? 'User');
+    setDmText('');
+    setDmOpen(true);
+    markThreadRead(userId);
+  }
+
+  function resetDM() {
+    setDmOpen(false);
+    setDmRecipientId(null);
+    setDmRecipientName(null);
+    setDmText('');
+  }
+
+  function handleSendDM(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const t = dmText.trim();
+    if (!t || !dmRecipientId) return;
+    addDmMessage(dmRecipientId, t);
+    resetDM();
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /*  FOLLOW / FAVS                                                           */
+  /* ------------------------------------------------------------------------ */
+
   const [followedUsers, setFollowedUsers] = useState<string[]>([]);
   const [followedLocations, setFollowedLocations] = useState<string[]>([]);
+
   useEffect(() => {
-    setFollowedUsers(JSON.parse(localStorage.getItem('ps_follow_users') || '[]'));
-    setFollowedLocations(
-      JSON.parse(localStorage.getItem('ps_follow_locs') || '[]'),
-    );
+    try {
+      setFollowedUsers(
+        JSON.parse(localStorage.getItem('ps_follow_users') || '[]'),
+      );
+      setFollowedLocations(
+        JSON.parse(localStorage.getItem('ps_follow_locs') || '[]'),
+      );
+    } catch {
+      // ignore
+    }
   }, []);
+
   useEffect(() => {
     localStorage.setItem('ps_follow_users', JSON.stringify(followedUsers));
   }, [followedUsers]);
+
   useEffect(() => {
     localStorage.setItem('ps_follow_locs', JSON.stringify(followedLocations));
   }, [followedLocations]);
 
   const toggleFollowUser = (userId: string) =>
     setFollowedUsers((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
-    );
-  const toggleFollowLocation = (locId: string) =>
-    setFollowedLocations((prev) =>
-      prev.includes(locId) ? prev.filter((id) => id !== locId) : [...prev, locId],
+      prev.includes(userId)
+        ? prev.filter((id) => id !== userId)
+        : [...prev, userId],
     );
 
-  // HOME FEED FILTER (fav locations, fav users, all)
-  const [feedFilter, setFeedFilter] = useState<'favLocations' | 'favUsers' | 'all'>(
-    'all',
-  );
+  const toggleFollowLocation = (locId: string) =>
+    setFollowedLocations((prev) =>
+      prev.includes(locId)
+        ? prev.filter((id) => id !== locId)
+        : [...prev, locId],
+    );
+
+  /* ------------------------------------------------------------------------ */
+  /*  FEED FILTER                                                             */
+  /* ------------------------------------------------------------------------ */
+
+  const [feedFilter, setFeedFilter] = useState<
+    'favLocations' | 'favUsers' | 'all'
+  >('all');
 
   const filteredPosts = useMemo(() => {
     switch (feedFilter) {
@@ -482,66 +452,321 @@ function PageInner() {
         );
       case 'favUsers':
         return posts.filter((p) => followedUsers.includes(p.authorId));
-      case 'all':
       default:
         return posts;
     }
   }, [feedFilter, posts, followedLocations, followedUsers]);
 
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
+  const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
+    null,
+  );
+
+  const [profileFilter, setProfileFilter] = useState<
+    'posts' | 'events' | 'marketplace' | 'collabs' | 'messages'
+  >('posts');
+
+  /* ------------------------------------------------------------------------ */
+  /*  NOTIFICATIONS + MESSAGES STATE                                          */
+  /* ------------------------------------------------------------------------ */
+
+  const [notifications, setNotifications] = useState<NotificationItem[]>([
+    {
+      id: 'n1',
+      kind: 'comment_reply',
+      createdAt: minutesAgo(5),
+      read: false,
+      actor: {
+        id: 'u_demo_2',
+        name: 'Haunted Helen',
+      },
+      text: 'replied to your post at Mill Street Barracks.',
+      target: { type: 'post', id: 'post-demo-1' },
+    },
+    {
+      id: 'n2',
+      kind: 'tagged_in_comment',
+      createdAt: minutesAgo(35),
+      read: false,
+      actor: {
+        id: 'u_demo_3',
+        name: 'GhostHunter99',
+      },
+      text: 'tagged you in a comment on a marketplace listing.',
+      target: { type: 'marketplace', id: 'market-demo-1' },
+    },
+    {
+      id: 'n3',
+      kind: 'follow',
+      createdAt: minutesAgo(120),
+      read: true,
+      actor: {
+        id: 'u_demo_4',
+        name: 'NightWatchTeam',
+      },
+      text: 'started following your profile.',
+      target: { type: 'profile', id: 'u_current' },
+    },
+  ]);
+
+  const [dmThreads, setDmThreads] = useState<DMThread[]>([
+    {
+      id: 't1',
+      otherUser: {
+        id: 'u_demo_5',
+        name: 'Graveyard Shift',
+      },
+      lastMessageAt: minutesAgo(10),
+      messages: [
+        {
+          id: 'm1',
+          threadId: 't1',
+          fromUserId: 'u_demo_5',
+          toUserId: 'u_current',
+          text: 'Hey, fancy teaming up at Newsham Park soon?',
+          createdAt: minutesAgo(15),
+          read: true,
+        },
+        {
+          id: 'm2',
+          threadId: 't1',
+          fromUserId: 'u_current',
+          toUserId: 'u_demo_5',
+          text: 'Yeah, that sounds great – I’m free next month.',
+          createdAt: minutesAgo(10),
+          read: true,
+        },
+      ],
+    },
+    {
+      id: 't2',
+      otherUser: {
+        id: 'u_demo_6',
+        name: 'SpiritBoxTV',
+      },
+      lastMessageAt: minutesAgo(60),
+      messages: [
+        {
+          id: 'm3',
+          threadId: 't2',
+          fromUserId: 'u_demo_6',
+          toUserId: 'u_current',
+          text: 'Can we cross-promote our events on Paraverse?',
+          createdAt: minutesAgo(60),
+          read: false,
+        },
+      ],
+    },
+  ]);
+
+  const unreadNotificationCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications],
+  );
+
+  const unreadDmCount = useMemo(
+    () =>
+      dmThreads.reduce((acc, t) => {
+        const unreadInThread = t.messages.filter(
+          (m) => !m.read && m.toUserId === currentUser.id,
+        ).length;
+        return acc + unreadInThread;
+      }, 0),
+    [dmThreads, currentUser.id],
+  );
+
+  const sortedNotifications = useMemo(
+    () =>
+      [...notifications].sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      ),
+    [notifications],
+  );
+
+  const sortedDmThreads = useMemo(
+    () =>
+      [...dmThreads].sort(
+        (a, b) =>
+          new Date(b.lastMessageAt).getTime() -
+          new Date(a.lastMessageAt).getTime(),
+      ),
+    [dmThreads],
+  );
+
+  function handleNotificationClick(n: NotificationItem) {
+    setNotifications((prev) =>
+      prev.map((item) =>
+        item.id === n.id ? { ...item, read: true } : item,
+      ),
+    );
+
+    if (!n.target) return;
+
+    switch (n.target.type) {
+      case 'post':
+        setTab('home');
+        setSelectedUserId(null);
+        break;
+      case 'event':
+        setTab('events');
+        setSelectedUserId(null);
+        break;
+      case 'marketplace':
+        setTab('marketplace');
+        setSelectedUserId(null);
+        break;
+      case 'collab':
+        setTab('collaboration');
+        setSelectedUserId(null);
+        break;
+      case 'profile':
+        openUser(n.target.id);
+        break;
+      default:
+        break;
+    }
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /*  TAB SWITCHING                                                           */
+  /* ------------------------------------------------------------------------ */
 
   function handleSelectTab(next: TabKey) {
-  if (next === 'profile') {
-    openUser(currentUser.id);
-    return;
+    if (next === 'profile') {
+      openUser(currentUser.id);
+      return;
+    }
+    setTab(next);
+    setSelectedUserId(null);
   }
-  setTab(next);
-  setSelectedUserId(null);
-  setSelectedLocationId(null);
-}
 
-
-  // Map visibility:
-  // - home / marketplace / profile => HAUNTING
-  // - events                      => EVENT
-  // - collaboration               => COLLAB
-  function allowedTypesForTab(t: string): Array<LocationData['type']> | null {
-    if (t === 'events') return ['EVENT'];
-    if (t === 'collaboration') return ['COLLAB'];
-    return ['HAUNTING'];
-  }
+  /* ------------------------------------------------------------------------ */
+  /*  MAP LOCATIONS                                                           */
+  /* ------------------------------------------------------------------------ */
 
   const matchesQuery = (s?: string) =>
-    !searchQuery || (s ?? '').toLowerCase().includes(searchQuery.toLowerCase());
+    !searchQuery ||
+    (s || '').toLowerCase().includes(searchQuery.toLowerCase());
 
-  const filteredLocations = useMemo(() => {
-    const allowed = allowedTypesForTab(tab);
-    const byType = allowed
-      ? locations.filter((l) => allowed.includes(l.type))
-      : locations;
-    return byType.filter(
-      (l) => matchesQuery(l.title) || matchesQuery(l.summary),
-    );
-  }, [locations, searchQuery, tab]);
+  const mapLocations = useMemo(
+    () =>
+      locations.filter((l) => {
+        if (!(matchesQuery(l.title) || matchesQuery(l.summary))) {
+          return false;
+        }
+        if (tab === 'events') return l.type === 'EVENT';
+        if (tab === 'collaboration') return l.type === 'COLLAB';
+
+        if (
+          tab === 'home' ||
+          tab === 'locations' ||
+          tab === 'marketplace'
+        ) {
+          return l.type === 'HAUNTING';
+        }
+
+        return l.type === 'HAUNTING';
+      }),
+    [locations, tab, searchQuery],
+  );
+
+  /* ------------------------------------------------------------------------ */
+  /*  MAP PIN HANDLERS                                                        */
+  /* ------------------------------------------------------------------------ */
 
   function openFromPin(loc: LocationData) {
     setDrawerLoc(loc);
-    setDrawerOpen(true);
     setSelectedLocationId(loc.id);
     setSelectedUserId(null);
+
+    if (loc.type === 'EVENT') {
+      setDrawerKind('EVENT');
+      setDrawerOpen(true);
+    } else if (loc.type === 'COLLAB') {
+      setDrawerKind('COLLAB');
+      setDrawerOpen(true);
+    } else {
+      setDrawerKind('HAUNTING');
+      setDrawerOpen(true);
+    }
+
+    if (mapRef.current?.focusOn) {
+      mapRef.current.focusOn(loc.lng, loc.lat, 11);
+    }
   }
+
+  function focusLocationById(locId: string) {
+    const loc = locations.find((l) => l.id === locId);
+    if (!loc) return;
+
+    setSelectedLocationId(loc.id);
+    setDrawerLoc(loc);
+    setDrawerOpen(false);
+
+    if (mapRef.current?.focusOn) {
+      mapRef.current.focusOn(loc.lng, loc.lat, 11);
+    }
+  }
+
   function openUser(userId: string) {
     const u = usersById[userId] ?? { id: userId, name: 'User' };
     setDrawerUser(u);
-    setUserDrawerOpen(true);
+    setUserDrawerOpen(false);
     setSelectedUserId(userId);
-    setSelectedLocationId(null);
     setTab('home');
   }
 
+  function openEditProfile() {
+    const u =
+      usersById[currentUser.id] ?? {
+        id: currentUser.id,
+        name: currentUser.name,
+        avatarUrl: currentUser.avatarUrl,
+      };
+    setDrawerUser(u);
+    setUserDrawerOpen(true);
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /*  LOCATION FEED ACTIONS (edit/delete/message)                             */
+  /* ------------------------------------------------------------------------ */
+
+  function onEditLocation(locId: string) {
+    const loc = locations.find((l) => l.id === locId);
+    if (!loc) return;
+
+    setEditingLocation(loc);
+    setLocFormOpen(true);
+    setSelectedUserId(null);
+    setTab('locations');
+  }
+
+  function onDeleteLocation(locId: string) {
+    if (!window.confirm('Delete this location? This cannot be undone.')) return;
+
+    setLocations((prev) => prev.filter((l) => l.id !== locId));
+
+    setComments((prev) => {
+      const next = { ...prev };
+      delete next[`loc:${locId}`];
+      return next;
+    });
+
+    setStarredLocations((prev) => prev.filter((id) => id !== locId));
+  }
+
+  function onMessageLocationOwner(userId: string) {
+    openDM(userId);
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /*  POST FORM                                                               */
+  /* ------------------------------------------------------------------------ */
+
   const { url: postImg, onChange: postImgChange, clear: postImgClear } =
     useImagePreview();
+
   const [postFormOpen, setPostFormOpen] = useState(false);
   const [postTagUsers, setPostTagUsers] = useState<string[]>([]);
   const [selectedLocId, setSelectedLocId] = useState<string>('');
@@ -555,32 +780,42 @@ function PageInner() {
       : base.slice(0, 12);
   }, [locations, locQuery]);
 
-  function toggle(arr: string[], id: string, setter: (v: string[]) => void) {
-    setter(arr.includes(id) ? arr.filter((x) => x !== id) : [...arr, id]);
-  }
-
   function handleAddPost(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!selectedLocId) return;
 
     const fd = new FormData(e.currentTarget);
     const title = String(fd.get('title') || '').trim();
     const desc = String(fd.get('desc') || '').trim();
-    const link = String(fd.get('link') || '').trim() || undefined;
+
+    const linkUrl = String(fd.get('link') || '').trim() || undefined;
+    const rawLinkKind = String(fd.get('linkKind') || '').trim();
+
+    const linkKind: DemoPost['linkKind'] =
+      rawLinkKind === 'youtube' ||
+      rawLinkKind === 'tiktok' ||
+      rawLinkKind === 'instagram' ||
+      rawLinkKind === 'facebook' ||
+      rawLinkKind === 'other'
+        ? rawLinkKind
+        : linkUrl
+        ? 'other'
+        : undefined;
 
     const p: DemoPost = {
       id: crypto.randomUUID(),
       type: 'Post',
       title,
       desc,
-      locationId: selectedLocId,
+      locationId: selectedLocId || undefined,
       imageUrl: postImg,
-      linkUrl: link,
+      linkUrl,
+      linkKind,
       authorId: currentUser.id,
       authorName: currentUser.name,
       tagUserIds: postTagUsers,
       createdAt: Date.now(),
     };
+
     setPosts((prev) => [p, ...prev]);
     postImgClear();
     setPostTagUsers([]);
@@ -589,151 +824,551 @@ function PageInner() {
     setPostFormOpen(false);
   }
 
-  function canEditPost(p: DemoPost) {
-    return p.authorId === currentUser.id;
-  }
   function editPost(id: string, patch: Partial<DemoPost>) {
     setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
   }
+
   function deletePost(id: string) {
     setPosts((prev) => prev.filter((p) => p.id !== id));
     setComments((prev) => {
-      const c = { ...prev };
-      delete c[`post:${id}`];
-      return c;
+      const next = { ...prev };
+      delete next[`post:${id}`];
+      return next;
     });
   }
 
+  function canEditPost(p: DemoPost) {
+    return p.authorId === currentUser.id;
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /*  LOCATION FORM                                                           */
+  /* ------------------------------------------------------------------------ */
+
   const [locFormOpen, setLocFormOpen] = useState(false);
-  const [newLoc, setNewLoc] = useState<{ lng: number; lat: number } | null>(null);
+  const [newLoc, setNewLoc] = useState<{ lng: number; lat: number } | null>(
+    null,
+  );
+  const [editingLocation, setEditingLocation] =
+    useState<LocationData | null>(null);
+
   const { url: locImg, onChange: locImgChange, clear: locImgClear } =
     useImagePreview();
 
   function openAddLocation() {
     const center = mapRef.current?.getCenter();
-    setNewLoc(center ? { lng: center[0], lat: center[1] } : { lng: -2.5, lat: 54.3 });
+    setNewLoc(
+      center ? { lng: center[0], lat: center[1] } : { lng: -2.5, lat: 54.3 },
+    );
+
+    setEditingLocation(null);
+    setTab('locations');
+    setSelectedUserId(null);
     setLocFormOpen(true);
   }
 
-  function handleAddLocation(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const type = String(fd.get('type')) as LocationData['type'];
-    const l: LocationData = {
-      id: crypto.randomUUID(),
-      title: String(fd.get('title') || '').trim(),
-      type,
-      lat: Number(fd.get('lat') || newLoc?.lat || 54.3),
-      lng: Number(fd.get('lng') || newLoc?.lng || -2.5),
-      summary: String(fd.get('summary') || '').trim() || undefined,
-      address: String(fd.get('address') || '').trim() || undefined,
-      priceInfo: String(fd.get('priceInfo') || '').trim() || undefined,
-      website: String(fd.get('website') || '').trim() || undefined,
-      imageUrl: locImg,
-    };
-    setLocations((prev) => [l, ...prev]);
-    setLocFormOpen(false);
-    locImgClear();
-  }
+  /* ------------------------------------------------------------------------ */
+  /*  EVENT & COUNTRY CONTEXT                                                 */
+  /* ------------------------------------------------------------------------ */
 
   const { country } = useScope();
   const countries = useCountries();
 
-  const [eventFormOpen, setEventFormOpen] = useState(false);
-  const { url: evImg, onChange: evImgChange, clear: evImgClear } =
-    useImagePreview();
-  function handleAddEvent(e: FormEvent<HTMLFormElement>) {
+  async function handleAddLocation(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
 
+    const title = String(fd.get('title') || '').trim();
+    if (!title) return;
+
+    const summary = String(fd.get('summary') || '').trim() || undefined;
+    const address =
+      String(fd.get('address') || '').trim() || undefined;
+
+    // social links
+    let socialLinks: SocialLink[] = [];
+    const rawSocial = String(fd.get('socialLinks') || '[]');
+
+    try {
+      const parsed = JSON.parse(rawSocial);
+      if (Array.isArray(parsed)) {
+        socialLinks = parsed
+          .filter(
+            (x: any) =>
+              x &&
+              typeof x.platform === 'string' &&
+              typeof x.url === 'string' &&
+              x.url.trim(),
+          )
+          .map((x) => ({
+            platform: x.platform as SocialLink['platform'],
+            url: x.url.trim(),
+          }));
+      }
+    } catch {
+      // ignore
+    }
+
+    const primaryLink = socialLinks[0]?.url;
+    const website =
+      primaryLink ||
+      (String(fd.get('website') || '').trim() || undefined);
+
+    const countryCode = String(fd.get('country') || country).toUpperCase();
+    const postalCodeRaw = String(fd.get('postal') || '').trim();
+
+    if (!postalCodeRaw) return;
+    const postalCode = postalCodeRaw;
+
+    const editId = String(fd.get('id') || '').trim();
+    const isEdit = !!editId;
+
+    let lng = -2.5;
+    let lat = 54.3;
+
+    const geo = await geocodePostal(countryCode, postalCode);
+    if (geo) {
+      lng = geo.lng;
+      lat = geo.lat;
+    } else if (newLoc) {
+      lng = newLoc.lng;
+      lat = newLoc.lat;
+    }
+
+    const verifiedByOwner = fd.get('verifiedByOwner') === 'on';
+
+    if (isEdit) {
+      setLocations((prev) =>
+        prev.map((l) =>
+          l.id === editId
+            ? ({
+                ...l,
+                title,
+                summary,
+                address,
+                website,
+                imageUrl: locImg || (l as any).imageUrl,
+                verifiedByOwner,
+                countryCode,
+                postalCode,
+                lat,
+                lng,
+                socialLinks,
+              } as LocationData)
+            : l,
+        ),
+      );
+    } else {
+      const id = crypto.randomUUID();
+
+      const loc: LocationData = {
+        id,
+        title,
+        type: 'HAUNTING',
+        lat,
+        lng,
+        summary,
+        address,
+        website,
+        imageUrl: locImg,
+        verifiedByOwner,
+        countryCode,
+        postalCode,
+        ownerId: currentUser.id,
+        ownerName: currentUser.name,
+        createdAt: Date.now(),
+        socialLinks,
+      } as any;
+
+      setLocations((prev) => [loc, ...prev]);
+
+      setFollowedLocations((prev) =>
+        prev.includes(id) ? prev : [id, ...prev],
+      );
+    }
+
+    setSelectedUserId(null);
+    setTab('locations');
+
+    if (mapRef.current?.focusOn) {
+      mapRef.current.focusOn(lng, lat, 11);
+    }
+
+    setLocFormOpen(false);
+    locImgClear();
+    setNewLoc(null);
+    setEditingLocation(null);
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /*  EVENT FORM                                                              */
+  /* ------------------------------------------------------------------------ */
+
+  const [eventFormOpen, setEventFormOpen] = useState(false);
+  const { url: evImg, onChange: evImgChange, clear: evImgClear } =
+    useImagePreview();
+
+  async function handleAddEvent(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+
+    const title = String(fd.get('title') || '').trim();
+    if (!title) return;
+
+    const description = String(fd.get('desc') || '').trim() || undefined;
+
+    let socialLinks: SocialLink[] = [];
+    const rawSocial = String(fd.get('socialLinks') || '[]');
+
+    try {
+      const parsed = JSON.parse(rawSocial);
+      if (Array.isArray(parsed)) {
+        socialLinks = parsed
+          .filter(
+            (x: any) =>
+              x &&
+              typeof x.platform === 'string' &&
+              typeof x.url === 'string' &&
+              x.url.trim(),
+          )
+          .map((x) => ({
+            platform: x.platform as SocialLink['platform'],
+            url: x.url.trim(),
+          }));
+      }
+    } catch {
+      // ignore
+    }
+
+    const primaryLink = socialLinks[0]?.url;
+
     const countryCode = String(fd.get('country') || country).toUpperCase();
     const postalCode = String(fd.get('postal') || '').trim() || undefined;
+
+    let lat: number;
+    let lng: number;
+
+    if (postalCode) {
+      const geo = await geocodePostal(countryCode, postalCode);
+      if (geo) {
+        lng = geo.lng;
+        lat = geo.lat;
+      } else {
+        lng = -2.5;
+        lat = 54.3;
+      }
+    } else {
+      lng = -2.5;
+      lat = 54.3;
+    }
+
+    const locId = crypto.randomUUID();
+    const eventLoc: LocationData = {
+      id: locId,
+      title,
+      type: 'EVENT',
+      lat,
+      lng,
+      summary: description,
+      address: undefined,
+      priceInfo: undefined,
+      website: primaryLink,
+      imageUrl: evImg,
+      countryCode,
+      postalCode,
+      ownerId: currentUser.id,
+    } as any;
+
+    setLocations((prev) => [eventLoc, ...prev]);
 
     setEvents((prev) => [
       ...prev,
       {
         id: crypto.randomUUID(),
-        title: String(fd.get('title') || '').trim(),
-        description: String(fd.get('desc') || '').trim() || undefined,
-        locationText: String(fd.get('where') || '').trim() || undefined,
-        startISO: String(fd.get('start') || ''),
-        endISO: String(fd.get('end') || '') || undefined,
-        priceText: String(fd.get('price') || '').trim() || undefined,
-        link: String(fd.get('link') || '').trim() || undefined,
+        title,
+        description,
+        locationText: undefined,
+        startISO: new Date().toISOString(),
+        endISO: undefined,
+        priceText: undefined,
+        link: primaryLink,
         imageUrl: evImg,
         createdAt: Date.now(),
         postedBy: { id: currentUser.id, name: currentUser.name },
         countryCode,
         postalCode,
+        locationId: locId,
+        socialLinks,
       },
     ]);
+
+    if (mapRef.current?.focusOn) {
+      mapRef.current.focusOn(lng, lat, 10);
+    }
+
     setEventFormOpen(false);
     evImgClear();
   }
 
+  /* ------------------------------------------------------------------------ */
+  /*  MARKETPLACE FORM                                                        */
+  /* ------------------------------------------------------------------------ */
+
   const [listingFormOpen, setListingFormOpen] = useState(false);
   const { url: mkImg, onChange: mkImgChange, clear: mkImgClear } =
     useImagePreview();
+
+  function startEditListing(item: MarketplaceItem) {
+    setEditingListing(item);
+    setListingFormOpen(true);
+  }
+
   function handleAddListing(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
 
+    const kind =
+      (String(fd.get('kind')) as 'Product' | 'Service') || 'Product';
+
+    const title = String(fd.get('title') || '').trim();
+    const description = String(fd.get('desc') || '').trim();
+
+    if (!title || !description) return;
+
+    const editId = String(fd.get('id') || '').trim();
+    const isEdit = !!editId;
+
+    let socialLinks: SocialLink[] = [];
+    const rawSocial = String(fd.get('socialLinks') || '[]');
+
+    try {
+      const parsed = JSON.parse(rawSocial);
+      if (Array.isArray(parsed)) {
+        socialLinks = parsed
+          .filter(
+            (x: any) =>
+              x &&
+              typeof x.platform === 'string' &&
+              typeof x.url === 'string' &&
+              x.url.trim(),
+          )
+          .map((x) => ({
+            platform: x.platform as SocialLink['platform'],
+            url: x.url.trim(),
+          }));
+      }
+    } catch {
+      // ignore
+    }
+
+    const primaryLink = socialLinks[0]?.url;
+
     const countryCode = String(fd.get('country') || country).toUpperCase();
     const postalCode = String(fd.get('postal') || '').trim() || undefined;
 
-    setMarket((prev) => [
-      {
-        id: crypto.randomUUID(),
-        kind: (String(fd.get('kind')) as 'Product' | 'Service') || 'Product',
-        title: String(fd.get('title') || '').trim(),
-        description: String(fd.get('desc') || '').trim(),
-        price: Number(String(fd.get('price') || '').trim()) || undefined,
-        locationText: String(fd.get('where') || '').trim() || undefined,
-        imageUrl: mkImg,
-        contactOrLink: String(fd.get('contact') || '').trim() || undefined,
-        createdAt: Date.now(),
-        postedBy: { id: currentUser.id, name: currentUser.name },
-        countryCode,
-        postalCode,
-      },
-      ...prev,
-    ]);
+    const existingImage =
+      isEdit && editingListing && editingListing.id === editId
+        ? editingListing.imageUrl
+        : undefined;
+
+    const finalImage = mkImg || existingImage;
+
+    if (isEdit) {
+      setMarket((prev) =>
+        prev.map((item) =>
+          item.id === editId
+            ? {
+                ...item,
+                kind,
+                title,
+                description,
+                webLink: primaryLink,
+                countryCode,
+                postalCode,
+                imageUrl: finalImage,
+                socialLinks,
+              }
+            : item,
+        ),
+      );
+    } else {
+      setMarket((prev) => [
+        {
+          id: crypto.randomUUID(),
+          kind,
+          title,
+          description,
+          contactInfo: undefined,
+          webLink: primaryLink,
+          imageUrl: finalImage,
+          createdAt: Date.now(),
+          postedBy: { id: currentUser.id, name: currentUser.name },
+          countryCode,
+          postalCode,
+          socialLinks,
+        },
+        ...prev,
+      ]);
+    }
+
+    setEditingListing(null);
     setListingFormOpen(false);
     mkImgClear();
   }
 
+  /* ------------------------------------------------------------------------ */
+  /*  COLLAB FORM                                                             */
+  /* ------------------------------------------------------------------------ */
+
   const [collabFormOpen, setCollabFormOpen] = useState(false);
+  const [editingCollab, setEditingCollab] = useState<CollabItem | null>(null);
+
   const { url: cbImg, onChange: cbImgChange, clear: cbImgClear } =
     useImagePreview();
-  function handleAddCollab(e: FormEvent<HTMLFormElement>) {
+
+  async function handleAddCollab(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
+
+    const title = String(fd.get('title') || '').trim();
+    if (!title) return;
+
+    const description = String(fd.get('desc') || '').trim() || undefined;
+
+    const editId = String(fd.get('id') || '').trim();
+    const isEdit = !!editId;
+
+    let socialLinks: SocialLink[] = [];
+    const rawSocial = String(fd.get('socialLinks') || '[]');
+
+    try {
+      const parsed = JSON.parse(rawSocial);
+      if (Array.isArray(parsed)) {
+        socialLinks = parsed
+          .filter(
+            (x: any) =>
+              x &&
+              typeof x.platform === 'string' &&
+              typeof x.url === 'string' &&
+              x.url.trim(),
+          )
+          .map((x) => ({
+            platform: x.platform as SocialLink['platform'],
+            url: x.url.trim(),
+          }));
+      }
+    } catch {
+      // ignore
+    }
+
+    const primaryLink = socialLinks[0]?.url;
 
     const countryCode = String(fd.get('country') || country).toUpperCase();
     const postalCode = String(fd.get('postal') || '').trim() || undefined;
 
-    setCollabs((prev) => [
-      {
-        id: crypto.randomUUID(),
-        title: String(fd.get('title') || '').trim(),
-        description: String(fd.get('desc') || '').trim() || undefined,
-        dateISO: String(fd.get('date') || '') || undefined,
-        locationText: String(fd.get('where') || '').trim() || undefined,
-        priceText: String(fd.get('price') || '').trim() || undefined,
-        contact: String(fd.get('contact') || '').trim() || undefined,
-        imageUrl: cbImg,
-        createdAt: Date.now(),
-        postedBy: { id: currentUser.id, name: currentUser.name },
-        countryCode,
-        postalCode,
-      },
-      ...prev,
-    ]);
+    let lat: number;
+    let lng: number;
+
+    if (postalCode) {
+      const geo = await geocodePostal(countryCode, postalCode);
+      if (geo) {
+        lng = geo.lng;
+        lat = geo.lat;
+      } else {
+        lng = -2.5;
+        lat = 54.3;
+      }
+    } else {
+      lng = -2.5;
+      lat = 54.3;
+    }
+
+    const existing = isEdit
+      ? collabs.find((c) => c.id === editId) || null
+      : null;
+
+    const locId = isEdit
+      ? existing?.locationId || crypto.randomUUID()
+      : crypto.randomUUID();
+
+    const finalImage = cbImg || (existing ? existing.imageUrl : undefined);
+
+    const baseLoc: LocationData = {
+      id: locId,
+      title,
+      type: 'COLLAB',
+      lat,
+      lng,
+      summary: description,
+      address: undefined,
+      priceInfo: undefined,
+      website: primaryLink,
+      imageUrl: finalImage,
+      countryCode,
+      postalCode,
+      ownerId: currentUser.id,
+    } as any;
+
+    setLocations((prev) => {
+      const exists = prev.some((l) => l.id === locId);
+      if (exists) {
+        return prev.map((l) => (l.id === locId ? { ...l, ...baseLoc } : l));
+      }
+      return [baseLoc, ...prev];
+    });
+
+    if (isEdit && editId && existing) {
+      setCollabs((prev) =>
+        prev.map((c) =>
+          c.id === editId
+            ? {
+                ...c,
+                title,
+                description,
+                imageUrl: finalImage,
+                countryCode,
+                postalCode,
+                locationId: locId,
+                socialLinks,
+              }
+            : c,
+        ),
+      );
+    } else {
+      setCollabs((prev) => [
+        {
+          id: crypto.randomUUID(),
+          title,
+          description,
+          dateISO: undefined,
+          locationText: undefined,
+          priceText: undefined,
+          contact: undefined,
+          imageUrl: finalImage,
+          createdAt: Date.now(),
+          postedBy: { id: currentUser.id, name: currentUser.name },
+          countryCode,
+          postalCode,
+          locationId: locId,
+          socialLinks,
+        },
+        ...prev,
+      ]);
+    }
+
+    if (mapRef.current?.focusOn) {
+      mapRef.current.focusOn(lng, lat, 10);
+    }
+
     setCollabFormOpen(false);
+    setEditingCollab(null);
     cbImgClear();
   }
 
-  // Auto-prune expired events & collabs (based on end/date)
+  /* ------------------------------------------------------------------------ */
+  /*  FILTERING & SORTING                                                     */
+  /* ------------------------------------------------------------------------ */
+
   const now = Date.now();
 
   const activeCollabs = useMemo(
@@ -746,888 +1381,442 @@ function PageInner() {
     [collabs, now],
   );
 
-  // sorters
-  const sortPosts = (a: DemoPost, b: DemoPost) => {
-    const sa = postStars[a.id] ?? 0;
-    const sb = postStars[b.id] ?? 0;
-    if (sb !== sa) return sb - sa;
-    return b.createdAt - a.createdAt;
-  };
- 
-  const sortMarket = (a: MarketplaceItem, b: MarketplaceItem) =>
-    b.createdAt - a.createdAt;
-  const sortCollab = (a: CollabItem, b: CollabItem) => {
-    const da = a.dateISO ? new Date(a.dateISO).getTime() : a.createdAt;
-    const db = b.dateISO ? new Date(b.dateISO).getTime() : b.createdAt;
-    return db - da;
-  };
+  const sortPosts = (a: DemoPost, b: DemoPost) => b.createdAt - a.createdAt;
+
+  const locationsByStars = useMemo(() => {
+    const haunted = locations.filter((l) => l.type === 'HAUNTING');
+
+    const scoped = haunted.filter((l) => {
+      const c = (l as any).countryCode;
+      if (!c) return true;
+      if (!country) return true;
+      if (country.toUpperCase() === 'EU') return true;
+      return c.toUpperCase() === country.toUpperCase();
+    });
+
+    return [...scoped].sort((a, b) => {
+      const sa = locationStars[a.id] ?? 0;
+      const sb = locationStars[b.id] ?? 0;
+      if (sb !== sa) return sb - sa;
+      return a.title.localeCompare(b.title);
+    });
+  }, [locations, locationStars, country]);
+
+  const userEventsForSelected = useMemo(
+    () =>
+      selectedUserId
+        ? events.filter((e) => e.postedBy?.id === selectedUserId)
+        : [],
+    [events, selectedUserId],
+  );
+
+  const userMarketForSelected = useMemo(
+    () =>
+      selectedUserId
+        ? market.filter((m) => m.postedBy?.id === selectedUserId)
+        : [],
+    [market, selectedUserId],
+  );
+
+  const userCollabsForSelected = useMemo(
+    () =>
+      selectedUserId
+        ? collabs.filter((c) => c.postedBy?.id === selectedUserId)
+        : [],
+    [collabs, selectedUserId],
+  );
+
+  const postsForSelectedUser = useMemo(
+    () =>
+      selectedUserId
+        ? posts.filter((p) => p.authorId === selectedUserId).sort(sortPosts)
+        : [],
+    [posts, selectedUserId],
+  );
+
+  /* ======================================================================== */
+  /*  RENDER                                                                  */
+  /* ======================================================================== */
 
   return (
     <main className="flex min-h-screen flex-col bg-[#0B0C0E] text-white">
-<ParaverseHeader
-  tab={tab}
-  onSelectTab={handleSelectTab}
-  searchQuery={searchQuery}
-  setSearchQuery={setSearchQuery}
-  currentUser={currentUser}
-/>
-
+      {/* HEADER */}
+      <ParaverseHeader
+        tab={tab}
+        onSelectTab={handleSelectTab}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        currentUser={currentUser}
+        unreadNotifications={unreadNotificationCount}
+        unreadMessages={unreadDmCount}
+        onOpenMessagesHub={() => {
+          openUser(currentUser.id);
+          setProfileFilter('messages');
+        }}
+      />
 
       {/* MAP */}
-      <section className="relative mx-auto w-full max-w-6xl px-4 pb-3 pt-3">
-        <div className="relative">
-          <LiveMap
-            ref={mapRef}
-            initialCenter={[-2.5, 54.3]}
-            overviewZoom={5.8}
-            heightVh={{ desktop: 38, mobile: 32 }}
-            locations={filteredLocations}
-            onOpen={openFromPin}
-          />
-
-          <MapActions onAddLocation={openAddLocation} />
-
-          {/* Drawers overlay */}
-          <div className="pointer-events-none absolute inset-0 z-50 flex items-start justify-center p-3 md:p-4">
-            <div className="pointer-events-auto w-full max-w-xl">
-              <LocationDrawer
-                variant="center"
-                open={drawerOpen}
-                location={drawerLoc}
-                onGiveLocationStar={giveLocationStar}
-                onClickLocationTitle={() =>
-                  drawerLoc && setSelectedLocationId(drawerLoc.id)
-                }
-                onFollowLocation={(locId) => toggleFollowLocation(locId)}
-                isFollowed={drawerLoc ? followedLocations.includes(drawerLoc.id) : false}
-                onClose={() => setDrawerOpen(false)}
-              />
-
-              <UserDrawer
-                open={userDrawerOpen}
-                user={drawerUser}
-                stars={drawerUser ? userStars[drawerUser.id] ?? 0 : 0}
-                onGiveStar={(uid) => giveUserStar(uid)}
-                onFollow={(uid) => toggleFollowUser(uid)}
-                onMessage={(uid) => alert(`(message) ${uid}`)}
-                onBlock={(uid) => alert(`(block) ${uid}`)}
-                onReport={(uid) => alert(`(report) ${uid}`)}
-                onSave={(next) => {
-                  setUsersById((prev) => ({ ...prev, [next.id]: next }));
-                  if (next.id === currentUser.id) {
-                    setCurrentUser((u) => ({
-                      ...u,
-                      name: next.name,
-                      avatarUrl: next.avatarUrl,
-                    }));
-                  }
-                  setDrawerUser(next);
-                }}
-                onClose={() => setUserDrawerOpen(false)}
-              />
-            </div>
-          </div>
-        </div>
-      </section>
+      <MapShell
+        mapRef={mapRef}
+        country={country}
+        mapLocations={mapLocations}
+        openFromPin={openFromPin}
+        drawerOpen={drawerOpen}
+        drawerKind={drawerKind}
+        drawerLoc={drawerLoc}
+        setDrawerOpen={setDrawerOpen}
+        setDrawerKind={setDrawerKind}
+        locationReviews={locationReviews}
+        giveLocationStar={giveLocationStar}
+        followedLocations={followedLocations}
+        toggleFollowLocation={toggleFollowLocation}
+        canEditComment={canEditComment}
+        openComment={openComment}
+        openEditComment={openEditComment}
+        events={events}
+        collabs={collabs}
+        formatShortDate={formatShortDate}
+        openDM={openDM}
+        userDrawerOpen={userDrawerOpen}
+        drawerUser={drawerUser}
+        currentUser={currentUser}
+        userStars={userStars}
+        giveUserStar={giveUserStar}
+        toggleFollowUser={toggleFollowUser}
+        setUsersById={setUsersById}
+        setCurrentUser={setCurrentUser}
+        setDrawerUser={setDrawerUser}
+        setUserDrawerOpen={setUserDrawerOpen}
+      />
 
       {/* FEEDS */}
       <section>
         <div className="mx-auto max-w-6xl px-4 py-6">
-          {/* Title row + country selector where relevant */}
-          <div className="mb-4">
-            <h1 className="text-2xl font-semibold">
-              {selectedLocationId
-                ? locations.find((l) => l.id === selectedLocationId)?.title ??
-                  'Location'
-                : selectedUserId
-                ? `${usersById[selectedUserId]?.name ?? 'User'} — posts`
-                : tab === 'home'
-                ? 'Home'
-                : tab === 'events'
-                ? 'Events'
-                : tab === 'marketplace'
-                ? 'Marketplace'
-                : tab === 'collaboration'
-                ? 'Collaboration'
-                : 'Feed'}
-            </h1>
+          {/* USER PROFILE HUB VIEW */}
+          {selectedUserId && (
+            <div className="mb-6">
+              <ProfileHubSection
+                selectedUserId={selectedUserId}
+                currentUser={currentUser}
+                usersById={usersById}
+                profileFilter={profileFilter}
+                setProfileFilter={setProfileFilter}
+                postsForSelectedUser={postsForSelectedUser}
+                userEventsForSelected={userEventsForSelected}
+                userMarketForSelected={userMarketForSelected}
+                userCollabsForSelected={userCollabsForSelected}
+                sortedNotifications={sortedNotifications}
+                sortedDmThreads={sortedDmThreads}
+                formatShortDate={formatShortDate}
+                handleNotificationClick={handleNotificationClick}
+                openDM={openDM}
+                openEditProfile={openEditProfile}
+              />
+            </div>
+          )}
 
-            {!selectedLocationId && !selectedUserId && tab === 'home' && (
-              <div className="mt-1 text-sm text-yellow-200">
-                Now showing posts by stars. Filter between favourite locations, favourite
-                users, or all posts.
-              </div>
-            )}
-
-            {tab === 'home' && (
-              <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                <Chip
-                  active={feedFilter === 'all'}
-                  onClick={() => setFeedFilter('all')}
-                >
-                  All
-                </Chip>
-                <Chip
-                  active={feedFilter === 'favLocations'}
-                  onClick={() => setFeedFilter('favLocations')}
-                >
-                  Favourites • Locations
-                </Chip>
-                <Chip
-                  active={feedFilter === 'favUsers'}
-                  onClick={() => setFeedFilter('favUsers')}
-                >
-                  Favourites • Users
-                </Chip>
-              </div>
-            )}
-
-            {tab === 'home' && (
-              <div className="mt-3 grid gap-3">
-                <div>
-                  <div className="mb-1 text-xs text-neutral-400">Followed users</div>
-                  <div className="flex flex-wrap gap-2">
-                    {followedUsers.length === 0 && (
-                      <span className="text-xs text-neutral-500">
-                        You are not following any users yet.
-                      </span>
-                    )}
-                    {followedUsers.map((uid) => (
-                      <Chip
-                        key={uid}
-                        active={selectedUserId === uid}
-                        onClick={() => {
-                          setSelectedUserId(uid === selectedUserId ? null : uid);
-                          setSelectedLocationId(null);
-                        }}
-                      >
-                        {usersById[uid]?.name ?? uid}
-                      </Chip>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-1 text-xs text-neutral-400">
-                    Followed locations
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {followedLocations.length === 0 && (
-                      <span className="text-xs text-neutral-500">
-                        You are not following any locations yet.
-                      </span>
-                    )}
-                    {followedLocations.map((lid) => (
-                      <Chip
-                        key={lid}
-                        active={selectedLocationId === lid}
-                        onClick={() => {
-                          setSelectedLocationId(
-                            lid === selectedLocationId ? null : lid,
-                          );
-                          setSelectedUserId(null);
-                        }}
-                      >
-                        {locations.find((l) => l.id === lid)?.title ?? lid}
-                      </Chip>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {tab === 'home' && (
-              <div className="mt-3">
-                <button
-                  onClick={() => setPostFormOpen(true)}
-                  className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-300 hover:bg-cyan-500/20"
-                >
-                  + Add Post
-                </button>
-              </div>
-            )}
-
-            {['events', 'marketplace', 'collaboration'].includes(tab) && (
-              <div className="mt-3">
-                <CountrySelect />
-              </div>
-            )}
-          </div>
-
-                   {/* POSTS */}
-          {tab === 'home' && (
-            <HomeFeed
-              posts={posts}
-              comments={comments}
-              postStars={postStars}
-              usersById={usersById}
-              locations={locations}
-              selectedUserId={selectedUserId}
-              setSelectedUserId={setSelectedUserId}
-              selectedLocationId={selectedLocationId}
-              setSelectedLocationId={setSelectedLocationId}
-              canEditPost={canEditPost}
+          {/* HOME (no user selected) */}
+          {!selectedUserId && tab === 'home' && (
+            <HomeSection
+              currentUser={currentUser}
+              feedFilter={feedFilter}
+              setFeedFilter={setFeedFilter}
+              filteredPosts={filteredPosts}
               editPost={editPost}
               deletePost={deletePost}
-              givePostStar={givePostStar}
-              openUser={openUser}
+              canEditPost={canEditPost}
+              comments={comments}
               openComment={openComment}
-              filteredPosts={filteredPosts}
-              searchQuery={searchQuery}
+              openEditComment={openEditComment}
+              canEditComment={canEditComment}
+              usersById={usersById}
+              followedUsers={followedUsers}
+              openUser={openUser}
+              sortPosts={sortPosts}
+              setPostFormOpen={setPostFormOpen}
+              onOpenImage={(src) => setLightboxSrc(src)}
             />
           )}
 
+          {/* LOCATIONS */}
+    {!selectedUserId && tab === 'locations' && (
+  <LocationsSection
+    country={country}
+    countries={countries}
+    locationsByStars={locationsByStars}
+    locationStars={locationStars}
+    comments={comments}
+    usersById={usersById}
+    giveLocationStar={giveLocationStar}
+    openAddLocation={openAddLocation}
+    openFromPin={openFromPin}
+    openComment={openComment}
+    openEditComment={openEditComment}
+    openUser={openUser}
+    formatShortDate={formatShortDate}
+    currentUserId={currentUser.id}
+    // NEW: "View on map" should only move map, no drawer
+    onViewOnMap={(locId) => focusLocationById(locId)}
+    onEditLocation={onEditLocation}
+    onDeleteLocation={onDeleteLocation}
+    onMessageUser={onMessageLocationOwner}
+  />
+)}
+
+
           {/* EVENTS */}
           {tab === 'events' && (
-            <>
-              <div className="mb-3">
-                <button
-                  onClick={() => setEventFormOpen(true)}
-                  className="rounded-md border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-sm text-purple-200 hover:bg-purple-500/20"
-                >
-                  + Add Event
-                </button>
-              </div>
-
-              <EventsFeed
-                country={country}
-                events={events}
-                comments={comments}
-                eventStars={eventStars}
-                giveEventStar={giveEventStar}
-                openComment={openComment}
-              />
-            </>
+            <EventsSection
+              country={country}
+              events={events}
+              currentUserId={currentUser.id}
+              setEventFormOpen={setEventFormOpen}
+              onMessageUser={openDM}
+              onOpenLocation={(locId) => focusLocationById(locId)}
+              onUpdateEvent={updateEvent}
+              onDeleteEvent={deleteEvent}
+              onOpenImage={(src) => setLightboxSrc(src)}
+              onOpenUser={openUser}
+            />
           )}
 
           {/* MARKETPLACE */}
           {tab === 'marketplace' && (
-            <MarketplaceFeed
+            <MarketplaceSection
               country={country}
               items={market}
-              comments={comments}
-              marketStars={marketStars}
-              giveMarketStar={giveMarketStar}
-              openComment={openComment}
               marketFilter={marketFilter}
               setMarketFilter={setMarketFilter}
+              currentUserId={currentUser.id}
+              onOpenDM={openDM}
+              onAddListing={() => {
+                setEditingListing(null);
+                setListingFormOpen(true);
+              }}
+              onEditListing={startEditListing}
+              onDeleteListing={(id) =>
+                setMarket((prev) => prev.filter((m) => m.id !== id))
+              }
+              onOpenImage={(src) => setLightboxSrc(src)}
+              onOpenUser={openUser}
             />
           )}
 
           {/* COLLABORATION */}
           {tab === 'collaboration' && (
-            <>
-              <SectionDisclaimer>
-                Collaboration posts are user-organised. Paraverse does not mediate or
-                guarantee any arrangement—please verify reputation, safety, and terms
-                independently.
-              </SectionDisclaimer>
-
-              <div className="mb-3">
-                <button
-                  onClick={() => setCollabFormOpen(true)}
-                  className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-sm text-cyan-300 hover:bg-cyan-500/20"
-                >
-                  + Add Collaboration
-                </button>
-              </div>
-
-              <CollaborationFeed
-                country={country}
-                items={collabs}
-                comments={comments}
-                collabStars={collabStars}
-                giveCollabStar={giveCollabStar}
-                openComment={openComment}
-              />
-            </>
+            <CollabSection
+              country={country}
+              items={activeCollabs}
+              currentUserId={currentUser.id}
+              onAddCollab={() => {
+                setEditingCollab(null);
+                cbImgClear();
+                setCollabFormOpen(true);
+              }}
+              onOpenDM={openDM}
+              onOpenLocation={(locId) => focusLocationById(locId)}
+              onOpenUser={openUser}
+              onOpenImage={(src) => setLightboxSrc(src)}
+              onEditCollab={(id) => {
+                const found = collabs.find((c) => c.id === id) || null;
+                setEditingCollab(found);
+                cbImgClear();
+                setCollabFormOpen(true);
+              }}
+              onDeleteCollab={(id) => {
+                setCollabs((prev) => prev.filter((c) => c.id !== id));
+              }}
+            />
           )}
-
-      </div>
+        </div>
       </section>
 
-      {/* MODALS */}
+      {/* ======================= MODALS ======================= */}
+
+      {/* POST MODAL */}
       <Modal open={postFormOpen} onClose={() => setPostFormOpen(false)}>
-        <form onSubmit={handleAddPost} className="space-y-3">
-          <h3 className="text-lg font-semibold">Add Post</h3>
-          <input
-            name="title"
-            placeholder="Title"
-            required
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <div>
-            <div className="mb-1 text-sm text-neutral-300">Location (required)</div>
-            <input
-              value={locQuery}
-              onChange={(e) => {
-                setLocQuery(e.target.value);
-                setSelectedLocId('');
-              }}
-              placeholder="Start typing a location…"
-              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-            />
-            {!!locQuery && (
-              <div className="mt-2 max-h-44 overflow-auto rounded-md border border-neutral-800 bg-neutral-950">
-                {locationOptions.length === 0 && (
-                  <div className="px-3 py-2 text-sm text-neutral-500">
-                    No matches.
-                  </div>
-                )}
-                {locationOptions.map((l) => (
-                  <button
-                    key={l.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedLocId(l.id);
-                      setLocQuery(l.title);
-                    }}
-                    className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-neutral-900 ${
-                      selectedLocId === l.id ? 'bg-neutral-900' : ''
-                    }`}
-                  >
-                    <span>{l.title}</span>
-                    {selectedLocId === l.id && (
-                      <span className="text-cyan-300">Selected</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-            <input type="hidden" name="locationId" value={selectedLocId} />
-            {!selectedLocId && (
-              <div className="mt-1 text-xs text-red-300">
-                Pick a location from the list before posting.
-              </div>
-            )}
-          </div>
-
-          <textarea
-            name="desc"
-            placeholder="What happened? Evidence? Notes…"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-
-          <div>
-            <div className="mb-1 text-sm text-neutral-300">Tag friends</div>
-            <div className="flex flex-wrap gap-2">
-              {Object.values(usersById).map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => toggle(postTagUsers, u.id, setPostTagUsers)}
-                  className={`rounded-full border px-3 py-1 text-sm ${
-                    postTagUsers.includes(u.id)
-                      ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
-                      : 'border-neutral-700 text-neutral-300'
-                  }`}
-                >
-                  {u.name}
-                </button>
-              ))}
-              {Object.values(usersById).length === 0 && (
-                <span className="text-xs text-neutral-600">No users yet.</span>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm text-neutral-300">Photo (optional)</div>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={postImgChange}
-              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-            />
-          </div>
-
-          <input
-            name="link"
-            placeholder="Link (FB, YouTube, TikTok)"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setPostFormOpen(false)}
-              className="rounded-md border border-neutral-700 px-3 py-1.5"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={!selectedLocId}
-              className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-50"
-            >
-              Post
-            </button>
-          </div>
-        </form>
+        <PostForm
+          handleAddPost={handleAddPost}
+          postImg={postImg}
+          postImgChange={postImgChange}
+          postImgClear={postImgClear}
+          postTagUsers={postTagUsers}
+          setPostTagUsers={setPostTagUsers}
+          selectedLocId={selectedLocId}
+          setSelectedLocId={setSelectedLocId}
+          locQuery={locQuery}
+          setLocQuery={setLocQuery}
+          locationOptions={locationOptions}
+          hasLocations={locations.length > 0}
+        />
       </Modal>
 
-      <Modal open={locFormOpen} onClose={() => setLocFormOpen(false)}>
-        <form onSubmit={handleAddLocation} className="space-y-3">
-          <h3 className="text-lg font-semibold">Add Location</h3>
-          <input
-            name="title"
-            placeholder="Location title"
-            required
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <select
-            name="type"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          >
-            <option value="HAUNTING">Haunting</option>
-            <option value="EVENT">Event</option>
-            <option value="COLLAB">Collaboration</option>
-          </select>
-          <textarea
-            name="summary"
-            placeholder="Short summary (optional)"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <input
-            name="address"
-            placeholder="Address (optional)"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <input
-            name="priceInfo"
-            placeholder="Prices (optional)"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <input
-            name="website"
-            placeholder="Website (optional)"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              name="lng"
-              defaultValue={newLoc?.lng ?? -2.5}
-              placeholder="Lng"
-              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-            />
-            <input
-              name="lat"
-              defaultValue={newLoc?.lat ?? 54.3}
-              placeholder="Lat"
-              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setLocFormOpen(false)}
-              className="rounded-md border border-neutral-700 px-3 py-1.5"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20"
-            >
-              Save
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={eventFormOpen} onClose={() => setEventFormOpen(false)}>
-        <form onSubmit={handleAddEvent} className="space-y-3">
-          <h3 className="text-lg font-semibold">Add Event</h3>
-          <input
-            name="title"
-            placeholder="Title"
-            required
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <textarea
-            name="desc"
-            placeholder="Description (optional)"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <input
-            name="where"
-            placeholder="Location (text)"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-
-          {/* Country + Postal */}
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">Country</div>
-              <select
-                name="country"
-                defaultValue={country}
-                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-              >
-                {countries.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.name} ({c.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">ZIP / Post code</div>
-              <input
-                name="postal"
-                placeholder="e.g. M1 1AE or 90210"
-                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">From</div>
-              <input
-                type="datetime-local"
-                name="start"
-                required
-                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-              />
-            </div>
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">To</div>
-              <input
-                type="datetime-local"
-                name="end"
-                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm text-neutral-300">
-              Event photo (optional)
-            </div>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={evImgChange}
-              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-            />
-          </div>
-
-          <input
-            name="price"
-            placeholder="Price (optional)"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <input
-            name="link"
-            placeholder="Ticket / Info link (optional)"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setEventFormOpen(false)}
-              className="rounded-md border border-neutral-700 px-3 py-1.5"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="rounded-md border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-purple-200 hover:bg-purple-500/20"
-            >
-              Save
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={listingFormOpen} onClose={() => setListingFormOpen(false)}>
-        <form onSubmit={handleAddListing} className="space-y-3">
-          <h3 className="text-lg font-semibold">Add Listing</h3>
-          <select
-            name="kind"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          >
-            <option>Product</option>
-            <option>Service</option>
-          </select>
-          <input
-            name="title"
-            placeholder="Title"
-            required
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <textarea
-            name="desc"
-            placeholder="Description"
-            required
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              name="price"
-              placeholder="Price (optional)"
-              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-            />
-            <input
-              name="where"
-              placeholder="Location (optional)"
-              className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-            />
-          </div>
-
-          {/* Country + Postal */}
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">Country</div>
-              <select
-                name="country"
-                defaultValue={country}
-                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-              >
-                {countries.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.name} ({c.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">ZIP / Post code</div>
-              <input
-                name="postal"
-                placeholder="e.g. M1 1AE or 90210"
-                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm text-neutral-300">Photos (optional)</div>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={mkImgChange}
-              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-            />
-          </div>
-
-          <input
-            name="contact"
-            placeholder="Contact or link"
-            required
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setListingFormOpen(false)}
-              className="rounded-md border border-neutral-700 px-3 py-1.5"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20"
-            >
-              Save
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal open={collabFormOpen} onClose={() => setCollabFormOpen(false)}>
-        <form onSubmit={handleAddCollab} className="space-y-3">
-          <h3 className="text-lg font-semibold">Add Collaboration</h3>
-          <input
-            name="title"
-            placeholder="Title"
-            required
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <textarea
-            name="desc"
-            placeholder="Details (optional)"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <input
-            type="datetime-local"
-            name="date"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <input
-            name="where"
-            placeholder="Location (optional)"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <input
-            name="price"
-            placeholder="Price (optional)"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <input
-            name="contact"
-            placeholder="Contact or link"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-
-          {/* Country + Postal */}
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">Country</div>
-              <select
-                name="country"
-                defaultValue={country}
-                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-              >
-                {countries.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.name} ({c.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">ZIP / Post code</div>
-              <input
-                name="postal"
-                placeholder="e.g. M1 1AE or 90210"
-                className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm text-neutral-300">Photo (optional)</div>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={cbImgChange}
-              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setCollabFormOpen(false)}
-              className="rounded-md border border-neutral-700 px-3 py-1.5"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20"
-            >
-              Save
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Comment dialog */}
+      {/* LOCATION MODAL */}
       <Modal
-        open={commentOpen}
+        open={locFormOpen}
         onClose={() => {
-          setCommentOpen(false);
-          setCommentText('');
-          setCommentTags([]);
-          cImgClear();
+          setLocFormOpen(false);
+          setEditingLocation(null);
+          locImgClear();
         }}
       >
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold">Add Comment</h3>
-          <textarea
-            value={commentText}
-            onChange={(e) => setCommentText(e.target.value)}
-            placeholder="Write your comment…"
-            className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-          />
-          <div>
-            <div className="mb-1 text-sm text-neutral-300">
-              Attach photo (optional)
-            </div>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={cImgChange}
-              className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
-            />
-            {cImg && (
-              <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
-                <img
-                  src={cImg}
-                  alt="preview"
-                  className="max-h-56 w-auto rounded-md border border-neutral-800"
-                />
-                <div className="mt-2 flex items-center justify-between text-xs text-neutral-400">
-                  <span className="truncate">{cImgName}</span>
-                  <button
-                    type="button"
-                    onClick={cImgClear}
-                    className="text-neutral-300 hover:underline"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div className="mb-1 text-sm text-neutral-300">
-              Tag friends (optional)
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {Object.values(usersById).map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() =>
-                    setCommentTags((prev) =>
-                      prev.includes(u.id)
-                        ? prev.filter((x) => x !== u.id)
-                        : [...prev, u.id],
-                    )
-                  }
-                  className={`rounded-full border px-3 py-1 text-sm ${
-                    commentTags.includes(u.id)
-                      ? 'border-cyan-500 bg-cyan-500/10 text-cyan-300'
-                      : 'border-neutral-700 text-neutral-300'
-                  }`}
-                >
-                  {u.name}
-                </button>
-              ))}
-              {Object.values(usersById).length === 0 && (
-                <span className="text-xs text-neutral-600">No users yet.</span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => {
-                setCommentOpen(false);
-                setCommentText('');
-                setCommentTags([]);
-                cImgClear();
-              }}
-              className="rounded-md border border-neutral-700 px-3 py-1.5"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={submitComment}
-              disabled={!commentKey || (!commentText.trim() && !cImg)}
-              className="rounded-md border border-cyan-500 bg-cyan-500/10 px-3 py-1.5 text-cyan-300 hover:bg-cyan-500/20 disabled:opacity-50"
-            >
-              Post comment
-            </button>
-          </div>
-        </div>
+        <LocationForm
+          mode={editingLocation ? 'edit' : 'create'}
+          initialLocation={
+            editingLocation
+              ? {
+                  id: editingLocation.id,
+                  title: editingLocation.title,
+                  summary: editingLocation.summary,
+                  address: (editingLocation as any).address,
+                  countryCode: (editingLocation as any).countryCode,
+                  postalCode: (editingLocation as any).postalCode,
+                  website: (editingLocation as any).website,
+                  verifiedByOwner: (editingLocation as any).verifiedByOwner,
+                  socialLinks: (editingLocation as any).socialLinks ?? [],
+                }
+              : undefined
+          }
+          handleAddLocation={handleAddLocation}
+          locImg={locImg}
+          locImgChange={locImgChange}
+          country={country}
+          countries={countries}
+          onCancel={() => {
+            setLocFormOpen(false);
+            setEditingLocation(null);
+            locImgClear();
+          }}
+        />
       </Modal>
+
+      {/* EVENT MODAL */}
+      <Modal open={eventFormOpen} onClose={() => setEventFormOpen(false)}>
+        <EventForm
+          handleAddEvent={handleAddEvent}
+          evImg={evImg}
+          evImgChange={evImgChange}
+          country={country}
+          countries={countries}
+          onCancel={() => setEventFormOpen(false)}
+        />
+      </Modal>
+
+      {/* MARKETPLACE MODAL */}
+      <Modal
+        open={listingFormOpen}
+        onClose={() => {
+          setListingFormOpen(false);
+          setEditingListing(null);
+        }}
+      >
+        <MarketplaceForm
+          mode={editingListing ? 'edit' : 'create'}
+          initialItem={editingListing ?? undefined}
+          handleAddListing={handleAddListing}
+          mkImg={mkImg}
+          mkImgChange={mkImgChange}
+          mkImgClear={mkImgClear}
+          country={country}
+          countries={countries}
+          onCancel={() => {
+            setListingFormOpen(false);
+            setEditingListing(null);
+          }}
+        />
+      </Modal>
+
+      {/* COLLAB MODAL */}
+      <Modal
+        open={collabFormOpen}
+        onClose={() => {
+          setCollabFormOpen(false);
+          setEditingCollab(null);
+          cbImgClear();
+        }}
+      >
+        <CollaborationForm
+          mode={editingCollab ? 'edit' : 'create'}
+          initialCollab={
+            editingCollab
+              ? {
+                  id: editingCollab.id,
+                  title: editingCollab.title,
+                  description: editingCollab.description,
+                  countryCode: editingCollab.countryCode,
+                  postalCode: editingCollab.postalCode,
+                  socialLinks: (editingCollab as any).socialLinks ?? [],
+                }
+              : undefined
+          }
+          handleAddCollab={handleAddCollab}
+          cbImg={cbImg}
+          cbImgChange={cbImgChange}
+          country={country}
+          countries={countries}
+          onCancel={() => {
+            setCollabFormOpen(false);
+            setEditingCollab(null);
+            cbImgClear();
+          }}
+        />
+      </Modal>
+
+      {/* COMMENT MODAL */}
+      <Modal open={commentOpen} onClose={resetCommentState}>
+        <CommentForm
+          text={commentText}
+          setText={setCommentText}
+          img={cImg}
+          imgName={cImgName}
+          imgChange={cImgChange}
+          imgClear={cImgClear}
+          tags={commentTags}
+          setTags={setCommentTags}
+          usersById={usersById}
+          canSubmit={!!commentKey && (!!commentText.trim() || !!cImg)}
+          onCancel={resetCommentState}
+          onSubmit={submitComment}
+        />
+      </Modal>
+
+      {/* DM MODAL */}
+      <DMModal
+        open={dmOpen}
+        onClose={resetDM}
+        dmRecipientName={dmRecipientName}
+        dmText={dmText}
+        setDmText={setDmText}
+        onSend={handleSendDM}
+      />
+
+      {/* GLOBAL IMAGE LIGHTBOX */}
+      {lightboxSrc && (
+        <>
+          <div
+            className="fixed inset-0 z-[95] bg-black/80"
+            onClick={() => setLightboxSrc(null)}
+          />
+          <div className="fixed inset-0 z-[96] flex items-center justify-center p-4">
+            <div className="relative max-h-full max-w-3xl">
+              <button
+                type="button"
+                onClick={() => setLightboxSrc(null)}
+                className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/80 text-sm font-bold text-white"
+              >
+                ×
+              </button>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={lightboxSrc}
+                alt="Full view"
+                className="max-h-[80vh] w-auto rounded-lg border border-neutral-800 shadow-xl"
+              />
+            </div>
+          </div>
+        </>
+      )}
     </main>
   );
 }
+

@@ -1,9 +1,22 @@
 'use client';
 
 import React from 'react';
-import { Home, Handshake, CalendarClock, Store, User } from 'lucide-react';
+import {
+  Home,
+  Ghost,
+  Handshake,
+  CalendarClock,
+  Store,
+  User,
+} from 'lucide-react';
 
-export type TabKey = 'home' | 'events' | 'marketplace' | 'collaboration' | 'profile';
+export type TabKey =
+  | 'home'
+  | 'locations'
+  | 'events'
+  | 'marketplace'
+  | 'collaboration'
+  | 'profile';
 
 type CurrentUser = {
   id: string;
@@ -35,7 +48,10 @@ export default function ParaverseTopBar({
       className="h-6 w-6 rounded-full object-cover"
     />
   ) : (
-    <User size={18} className={profileIsActive ? 'text-red-300' : 'text-red-400'} />
+    <User
+      size={18}
+      className={profileIsActive ? 'text-red-300' : 'text-red-400'}
+    />
   );
 
   return (
@@ -78,6 +94,23 @@ export default function ParaverseTopBar({
             />
           </button>
 
+          {/* Locations (white ghost) */}
+          <button
+            type="button"
+            title="Locations"
+            onClick={() => onSelectTab('locations')}
+            className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
+              tab === 'locations'
+                ? 'border-white/70 bg-white/10'
+                : 'border-transparent hover:border-neutral-700 hover:bg-neutral-900'
+            }`}
+          >
+            <Ghost
+              size={18}
+              className={tab === 'locations' ? 'text-white' : 'text-neutral-200'}
+            />
+          </button>
+
           {/* Collaboration (green) */}
           <button
             type="button"
@@ -91,7 +124,9 @@ export default function ParaverseTopBar({
           >
             <Handshake
               size={18}
-              className={tab === 'collaboration' ? 'text-green-300' : 'text-green-400'}
+              className={
+                tab === 'collaboration' ? 'text-green-300' : 'text-green-400'
+              }
             />
           </button>
 
@@ -108,7 +143,9 @@ export default function ParaverseTopBar({
           >
             <CalendarClock
               size={18}
-              className={tab === 'events' ? 'text-purple-300' : 'text-purple-400'}
+              className={
+                tab === 'events' ? 'text-purple-300' : 'text-purple-400'
+              }
             />
           </button>
 
@@ -125,7 +162,9 @@ export default function ParaverseTopBar({
           >
             <Store
               size={18}
-              className={tab === 'marketplace' ? 'text-amber-300' : 'text-amber-400'}
+              className={
+                tab === 'marketplace' ? 'text-amber-300' : 'text-amber-400'
+              }
             />
           </button>
 
@@ -147,3 +186,6 @@ export default function ParaverseTopBar({
     </header>
   );
 }
+
+
+

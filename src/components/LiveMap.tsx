@@ -1,15 +1,23 @@
 'use client';
 
-import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import React, {
+  useEffect,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+} from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+
+import { Ghost, CalendarClock, Handshake } from 'lucide-react';
+import { createRoot } from 'react-dom/client';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
 
 export type LocationData = {
   id: string;
   title: string;
-  type: 'HAUNTING' | 'UFO' | 'CRYPTID' | 'EVENT';
+  type: 'HAUNTING' | 'EVENT' | 'COLLAB';
   lat: number;
   lng: number;
   imageUrl?: string;
@@ -17,8 +25,9 @@ export type LocationData = {
   address?: string;
   priceInfo?: string;
   website?: string;
-  startISO?: string;
-  endISO?: string;
+  countryCode?: string;
+  postalCode?: string;
+  verifiedByOwner?: boolean;
 };
 
 type Props = {
@@ -30,53 +39,49 @@ type Props = {
 };
 
 export type LiveMapHandle = {
-  focusOn: (_lng: number, _lat: number, _zoom?: number) => void;
+  // page.tsx calls this when you click a location/event/collab card
+  focusOn: (lng: number, lat: number, zoom?: number) => void;
   getCenter: () => [number, number] | null;
 };
 
 export default forwardRef<LiveMapHandle, Props>(function LiveMap(
-  { locations, onOpen, overviewZoom = 5.8, initialCenter = [-2.5, 54.3], heightVh = { desktop: 48, mobile: 40 } },
-  ref
+  {
+    locations,
+    onOpen,
+    overviewZoom = 7.8,
+    initialCenter = [-2.5, 54.3],
+    heightVh = { desktop: 38, mobile: 32 },
+  },
+  ref,
 ) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
-  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const geoRef = useRef<mapboxgl.GeolocateControl | null>(null);
 
+  /* ------------------------------------------------------------------
+     Public API: focusOn + getCenter
+  ------------------------------------------------------------------ */
   useImperativeHandle(ref, () => ({
-    focusOn() {/* no-op */},
+    focusOn(lng: number, lat: number, zoom: number = 10) {
+      const map = mapRef.current;
+      if (!map) return;
+      map.flyTo({
+        center: [lng, lat],
+        zoom,
+        essential: true,
+      });
+    },
     getCenter: () => {
-      const m = mapRef.current;
-      if (!m) return null;
-      const c = m.getCenter();
+      const map = mapRef.current;
+      if (!map) return null;
+      const c = map.getCenter();
       return [c.lng, c.lat];
     },
   }));
 
-  function putOrMoveUserMarker(lon: number, lat: number) {
-    const map = mapRef.current;
-    if (!map) return;
-
-    const el = document.createElement('div');
-    el.style.width = '14px';
-    el.style.height = '14px';
-    el.style.borderRadius = '9999px';
-    el.style.background = '#00fff6';
-    el.style.boxShadow = '0 0 0 3px rgba(0,255,246,0.3), 0 0 18px rgba(0,255,246,0.7)';
-    el.style.border = '2px solid rgba(0,0,0,0.8)';
-    el.title = 'You are here';
-
-    if (userMarkerRef.current) {
-      userMarkerRef.current.setLngLat([lon, lat]); // update position only
-    } else {
-      userMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([lon, lat])
-        .addTo(map);
-    }
-  }
-
-  // init map
+  /* ------------------------------------------------------------------
+     Init map (ONCE – never re-created while this component is mounted)
+  ------------------------------------------------------------------ */
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
@@ -87,102 +92,140 @@ export default forwardRef<LiveMapHandle, Props>(function LiveMap(
       zoom: overviewZoom,
       attributionControl: false,
     });
+
     mapRef.current = map;
 
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
-
-    const geo = new mapboxgl.GeolocateControl({
-      positionOptions: { enableHighAccuracy: true },
-      trackUserLocation: false,
-      showUserHeading: false,
-      showAccuracyCircle: false,
-    });
-    geoRef.current = geo;
-    map.addControl(geo, 'bottom-right');
-
-    map.on('load', () => {
-      (geo as any).on('geolocate', (e: any) => {
-        const coords = e?.coords || e?.position?.coords;
-        if (coords && typeof coords.longitude === 'number' && typeof coords.latitude === 'number') {
-          putOrMoveUserMarker(coords.longitude, coords.latitude);
-        }
-      });
-
-      if (typeof navigator !== 'undefined' && navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => putOrMoveUserMarker(pos.coords.longitude, pos.coords.latitude),
-          () => {},
-          { enableHighAccuracy: true, timeout: 7000, maximumAge: 15000 }
-        );
-      }
-    });
+    // Zoom / rotate controls bottom-right
+    map.addControl(
+      new mapboxgl.NavigationControl({ visualizePitch: true }),
+      'bottom-right',
+    );
 
     return () => {
+      // Clean up markers + map on unmount
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
-      if (userMarkerRef.current) {
-        userMarkerRef.current.remove();
-        userMarkerRef.current = null;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
       }
-      map.remove();
-      mapRef.current = null;
-      geoRef.current = null;
     };
-  }, [initialCenter, overviewZoom]);
+    // ⬇️ empty deps = only run once, not on tab changes
+  }, []);
 
-  // render markers (never move camera)
+  /* ------------------------------------------------------------------
+     Helper: build a Lucide-styled marker element per type
+  ------------------------------------------------------------------ */
+  function createMarkerElement(type: LocationData['type']): HTMLDivElement {
+    const outer = document.createElement('div');
+    outer.style.width = '28px';
+    outer.style.height = '28px';
+    outer.style.borderRadius = '9999px';
+    outer.style.display = 'flex';
+    outer.style.alignItems = 'center';
+    outer.style.justifyContent = 'center';
+    outer.style.cursor = 'pointer';
+    outer.style.boxShadow =
+      '0 0 0 3px rgba(0,0,0,0.7), 0 0 12px rgba(0,0,0,0.9)';
+
+    // background colours matched to the UI:
+    // - Haunting: white
+    // - Event: purple
+    // - Collab: emerald
+    if (type === 'HAUNTING') {
+      outer.style.background = '#ffffff';
+    } else if (type === 'EVENT') {
+      outer.style.background = '#a855f7'; // purple-500
+    } else {
+      outer.style.background = '#22c55e'; // emerald-500
+    }
+
+    const iconHolder = document.createElement('div');
+    iconHolder.style.display = 'flex';
+    iconHolder.style.alignItems = 'center';
+    iconHolder.style.justifyContent = 'center';
+    iconHolder.style.width = '100%';
+    iconHolder.style.height = '100%';
+    outer.appendChild(iconHolder);
+
+    const root = createRoot(iconHolder);
+    if (type === 'HAUNTING') {
+      root.render(
+        <Ghost
+          size={18}
+          strokeWidth={2.4}
+          color="#020617"
+        />,
+      );
+    } else if (type === 'EVENT') {
+      root.render(
+        <CalendarClock
+          size={18}
+          strokeWidth={2.4}
+          color="#0f172a"
+        />,
+      );
+    } else {
+      root.render(
+        <Handshake
+          size={18}
+          strokeWidth={2.4}
+          color="#022c22"
+        />,
+      );
+    }
+
+    return outer;
+  }
+
+  /* ------------------------------------------------------------------
+     Render markers whenever locations change (center/zoom unchanged)
+  ------------------------------------------------------------------ */
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
+    // Remove existing markers
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
+    // Add markers for current locations
     locations.forEach((loc) => {
-      const el = document.createElement('div');
-      el.style.width = '18px';
-      el.style.height = '18px';
-      el.style.borderRadius = '9999px';
-      el.style.background =
-        loc.type === 'HAUNTING' ? '#ffffff' :
-        loc.type === 'UFO'      ? '#9ee37d' :
-        loc.type === 'EVENT'    ? '#b18cff' : '#f2a65a';
-      el.style.boxShadow = '0 0 0 3px rgba(0,0,0,0.6), 0 0 12px rgba(255,255,255,0.35)';
-      el.style.cursor = 'pointer';
-      el.addEventListener('click', () => onOpen?.(loc));
+      const el = createMarkerElement(loc.type);
+      el.title = loc.title;
 
-      const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+      el.addEventListener('click', () => {
+        onOpen?.(loc);
+      });
+
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: 'center',
+      })
         .setLngLat([loc.lng, loc.lat])
         .addTo(map);
+
       markersRef.current.push(marker);
     });
   }, [locations, onOpen]);
+
+  /* ------------------------------------------------------------------
+     Render container
+  ------------------------------------------------------------------ */
+  const mapHeight =
+    typeof window !== 'undefined' && window.innerWidth < 768
+      ? `${heightVh.mobile}vh`
+      : `min(${heightVh.desktop}vh, 700px)`;
 
   return (
     <div className="relative">
       <div
         ref={containerRef}
-        className="rounded-xl overflow-hidden border border-neutral-800"
-        style={{ width: '100%', height: `min(${heightVh.desktop}vh, 700px)` }}
+        className="overflow-hidden rounded-xl border border-neutral-800"
+        style={{ width: '100%', height: mapHeight }}
       />
     </div>
   );
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
