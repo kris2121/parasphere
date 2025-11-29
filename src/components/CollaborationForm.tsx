@@ -26,7 +26,9 @@ type Props = {
     countryCode?: string;
     postalCode?: string;
     socialLinks?: SocialLink[];
+    locationId?: string; // 👈 NEW
   };
+
 };
 
 const PLATFORM_OPTIONS: SocialPlatform[] = [
@@ -70,12 +72,20 @@ export default function CollaborationForm({
       {/* hidden id so handleAddCollab knows if this is an edit */}
       <input type="hidden" name="id" value={initialCollab?.id ?? ''} />
 
+      {/* hidden locationId so we can preserve link to a map location */}
+      <input
+        type="hidden"
+        name="locationId"
+        value={initialCollab?.locationId ?? ''}
+      />
+
       <h3 className="text-lg font-semibold text-emerald-300">
         {mode === 'edit' ? 'Edit Collaboration' : 'Add Collaboration'}
       </h3>
 
       {/* HIDDEN SOCIAL LINKS FIELD */}
       <input type="hidden" name="socialLinks" value={JSON.stringify(links)} />
+
 
       {/* TITLE */}
       <input

@@ -1,19 +1,31 @@
 'use client';
 
-import React, { FormEvent, useState } from 'react';
+import React, { FormEvent, useEffect, useState } from 'react';
 
 type Country = { code: string; name: string };
 
+type SocialLink = { platform: string; url: string };
+
 type Props = {
   handleAddEvent: (e: FormEvent<HTMLFormElement>) => void;
-  evImg?: string; // preview URL
+  evImg?: string; // preview URL for newly selected image
   evImgChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   country: string;
   countries: Country[];
   onCancel: () => void;
-};
 
-type SocialLink = { platform: string; url: string };
+  // NEW (optional so it doesn't break existing usage)
+  mode?: 'create' | 'edit';
+  initialEvent?: {
+    id: string;
+    title: string;
+    description?: string;
+    countryCode?: string;
+    postalCode?: string;
+    socialLinks?: SocialLink[];
+    imageUrl?: string;
+  } | null;
+};
 
 const SOCIAL_OPTIONS: SocialLink['platform'][] = [
   'YouTube',
@@ -30,10 +42,21 @@ export default function EventForm({
   country,
   countries,
   onCancel,
+  mode = 'create',
+  initialEvent,
 }: Props) {
   const [links, setLinks] = useState<SocialLink[]>([]);
   const [platform, setPlatform] = useState<SocialLink['platform']>('YouTube');
   const [url, setUrl] = useState('');
+
+  // When editing, seed the social links from the existing event
+  useEffect(() => {
+    if (initialEvent?.socialLinks && initialEvent.socialLinks.length > 0) {
+      setLinks(initialEvent.socialLinks);
+    } else {
+      setLinks([]);
+    }
+  }, [initialEvent]);
 
   function addLink() {
     const trimmed = url.trim();
@@ -47,10 +70,21 @@ export default function EventForm({
     setLinks((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  const previewImg = evImg || initialEvent?.imageUrl;
+
   return (
     <form onSubmit={handleAddEvent} className="space-y-3">
       {/* TITLE */}
-      <h3 className="text-lg font-semibold text-purple-300">Add Event</h3>
+      <h3 className="text-lg font-semibold text-purple-300">
+        {mode === 'edit' ? 'Edit Event' : 'Add Event'}
+      </h3>
+
+      {/* HIDDEN ID WHEN EDITING */}
+      <input
+        type="hidden"
+        name="id"
+        value={initialEvent?.id ?? ''}
+      />
 
       {/* HIDDEN SOCIAL LINKS FIELD */}
       <input type="hidden" name="socialLinks" value={JSON.stringify(links)} />
@@ -60,6 +94,7 @@ export default function EventForm({
         name="title"
         placeholder="Event title"
         required
+        defaultValue={initialEvent?.title ?? ''}
         className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white"
       />
 
@@ -67,6 +102,7 @@ export default function EventForm({
       <textarea
         name="desc"
         placeholder="Describe the event, including date, time, meeting place, schedule and any important details…"
+        defaultValue={initialEvent?.description ?? ''}
         className="min-h-[140px] w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white"
       />
 
@@ -76,7 +112,7 @@ export default function EventForm({
           Web links
         </div>
 
-        {/* Row: select + input + button (same structure as marketplace) */}
+        {/* Row: select + input + button */}
         <div className="flex gap-2">
           <select
             className="w-32 rounded-md border border-neutral-700 bg-neutral-900 px-2 py-2 text-sm text-white"
@@ -108,7 +144,7 @@ export default function EventForm({
           </button>
         </div>
 
-        {/* Compact list of added links below, same width as above row */}
+        {/* Compact list of added links below */}
         {links.length > 0 ? (
           <div className="mt-2 space-y-1 text-xs">
             {links.map((l, idx) => (
@@ -152,7 +188,7 @@ export default function EventForm({
             </label>
             <select
               name="country"
-              defaultValue={country}
+              defaultValue={initialEvent?.countryCode ?? country}
               required
               className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white"
             >
@@ -172,6 +208,7 @@ export default function EventForm({
               name="postal"
               placeholder="Post code"
               required
+              defaultValue={initialEvent?.postalCode ?? ''}
               className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white"
             />
           </div>
@@ -188,11 +225,11 @@ export default function EventForm({
           onChange={evImgChange}
           className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white"
         />
-        {evImg && (
+        {previewImg && (
           <div className="mt-2 rounded-md border border-neutral-800 bg-neutral-950 p-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={evImg}
+              src={previewImg}
               alt="preview"
               className="max-h-64 w-auto rounded-md border border-neutral-800"
             />
@@ -213,19 +250,10 @@ export default function EventForm({
           type="submit"
           className="rounded-md border border-purple-400 bg-purple-500/20 px-3 py-1.5 text-sm font-medium text-purple-100 hover:bg-purple-500/30"
         >
-          Save Event
+          {mode === 'edit' ? 'Save changes' : 'Save Event'}
         </button>
       </div>
     </form>
   );
 }
-
-
-
-
-
-
-
-
-
 

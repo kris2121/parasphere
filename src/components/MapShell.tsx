@@ -1,5 +1,7 @@
+'use client';
+
 import React from 'react';
-import { Mail, User as UserIcon } from 'lucide-react';
+import { Mail } from 'lucide-react';
 
 import LiveMap, {
   LocationData,
@@ -10,17 +12,18 @@ import MapActions from '@/components/MapActions';
 import UserDrawer, { UserMini } from '@/components/UserDrawer';
 
 import type { EventItem, CollabItem, Comment } from '@/types/paraverse';
+import type { CreatorPost } from '@/components/feed/CreatorsFeed';
 
 // ----------------------------------------------
 // Country → map centre lookup table
 // ----------------------------------------------
 const COUNTRY_CENTERS: Record<string, [number, number]> = {
-  GB: [-2.5, 54.3],      // United Kingdom
-  UK: [-2.5, 54.3],      // UK alternative
-  US: [-98.35, 39.5],    // United States
-  CA: [-106.35, 56.1],   // Canada
-  AU: [134.49, -25.73],  // Australia
-  IE: [-8.1, 53.2],      // Ireland
+  GB: [-2.5, 54.3], // United Kingdom
+  UK: [-2.5, 54.3], // UK alternative
+  US: [-98.35, 39.5], // United States
+  CA: [-106.35, 56.1], // Canada
+  AU: [134.49, -25.73], // Australia
+  IE: [-8.1, 53.2], // Ireland
 };
 
 type MapShellProps = {
@@ -37,6 +40,7 @@ type MapShellProps = {
 
   locationReviews: Comment[];
   giveLocationStar: (locId: string) => void;
+  locationStars: Record<string, number>;
   followedLocations: string[];
   toggleFollowLocation: (locId: string) => void;
   canEditComment: (c: Comment) => boolean;
@@ -50,18 +54,38 @@ type MapShellProps = {
 
   userDrawerOpen: boolean;
   drawerUser?: UserMini;
-  currentUser: { id: string; name: string; avatarUrl?: string };
+  currentUser: {
+    id: string;
+    name: string;
+    avatarUrl?: string;
+    role: 'user' | 'admin' | 'superadmin';
+  };
   userStars: Record<string, number>;
   giveUserStar: (id: string) => void;
   toggleFollowUser: (id: string) => void;
+
+  /** List of followed user ids so the drawer can show Added vs Add */
+  followedUsers: string[];
 
   setUsersById: (updater: any) => void;
   setCurrentUser: (updater: any) => void;
   setDrawerUser: (updater: any) => void;
   setUserDrawerOpen: (updater: any) => void;
-};
 
-type SimpleLink = { platform?: string; url?: string };
+  // all creator posts grouped by locationId
+  creatorPostsByLocation: Record<string, CreatorPost[]>;
+
+  // profile save handler from page.tsx
+  onSaveUserProfile: (next: UserMini) => void;
+
+  // NEW: admin + location owner tools
+  isAdmin: boolean;
+  onEditLocation: (locId: string) => void;
+  onDeleteLocation: (locId: string) => void;
+
+  // NEW: superadmin-only admin toggle handler
+  onToggleAdminRole: (userId: string, nextRole: 'user' | 'admin') => void;
+};
 
 export default function MapShell(props: MapShellProps) {
   const {
@@ -76,6 +100,7 @@ export default function MapShell(props: MapShellProps) {
     setDrawerKind,
     locationReviews,
     giveLocationStar,
+    locationStars,
     followedLocations,
     toggleFollowLocation,
     canEditComment,
@@ -91,11 +116,24 @@ export default function MapShell(props: MapShellProps) {
     userStars,
     giveUserStar,
     toggleFollowUser,
+    followedUsers,
     setUsersById,
     setCurrentUser,
     setDrawerUser,
     setUserDrawerOpen,
+    creatorPostsByLocation,
+    onSaveUserProfile,
+    isAdmin,
+    onEditLocation,
+    onDeleteLocation,
+    onToggleAdminRole,
   } = props;
+
+  // Creator videos for the currently opened location (already grouped in page.tsx)
+  const creatorPostsForDrawerLocation: CreatorPost[] =
+    drawerLoc && creatorPostsByLocation
+      ? creatorPostsByLocation[drawerLoc.id] ?? []
+      : [];
 
   return (
     <section className="relative mx-auto w-full max-w-6xl px-4 pb-3 pt-3">
@@ -114,25 +152,32 @@ export default function MapShell(props: MapShellProps) {
         {/* Drawers */}
         <div className="pointer-events-none absolute inset-0 z-50 flex items-start justify-center p-3 md:p-4">
           <div className="pointer-events-auto w-full max-w-xl space-y-3">
-            {/* LOCATION / HAUNT DRAWER (stars + reviews) */}
+            {/* LOCATION / HAUNT DRAWER (stars + reviews + admin tools) */}
             {drawerOpen && drawerKind === 'HAUNTING' && (
               <LocationDrawer
                 variant="center"
                 open={drawerOpen}
                 location={drawerLoc}
+                starCount={
+                  drawerLoc ? locationStars[drawerLoc.id] ?? 0 : 0
+                }
                 onGiveLocationStar={giveLocationStar}
                 onClickLocationTitle={() => {
                   if (!drawerLoc) return;
-                  // focus this pin on the map
                   if (mapRef.current?.focusOn) {
-                    mapRef.current.focusOn(drawerLoc.lng, drawerLoc.lat, 11);
+                    mapRef.current.focusOn(
+                      drawerLoc.lng,
+                      drawerLoc.lat,
+                      11,
+                    );
                   }
                 }}
                 isFollowed={
-                  drawerLoc ? followedLocations.includes(drawerLoc.id) : false
+                  drawerLoc
+                    ? followedLocations.includes(drawerLoc.id)
+                    : false
                 }
                 onFollowLocation={(locId) => toggleFollowLocation(locId)}
-                // 💬 open review modal from inside drawer
                 onAddReview={() => {
                   if (!drawerLoc) return;
                   const reviewKey = `loc:${drawerLoc.id}`;
@@ -146,19 +191,25 @@ export default function MapShell(props: MapShellProps) {
                   openEditComment(reviewKey, reviewId);
                 }}
                 onClose={() => {
-                  // just close the drawer
                   setDrawerOpen(false);
                   setDrawerKind(null);
 
-                  // keep the map sitting on this haunt when drawer closes
                   if (drawerLoc && mapRef.current?.focusOn) {
-                    mapRef.current.focusOn(drawerLoc.lng, drawerLoc.lat, 11);
+                    mapRef.current.focusOn(
+                      drawerLoc.lng,
+                      drawerLoc.lat,
+                      11,
+                    );
                   }
                 }}
+                currentUserId={currentUser.id}
+                isAdmin={isAdmin}
+                onEditLocation={(locId) => onEditLocation(locId)}
+                onDeleteLocation={(locId) => onDeleteLocation(locId)}
               />
             )}
 
-            {/* EVENT MAP DRAWER (purple, with image + links + host) */}
+            {/* EVENT MAP DRAWER – mirrors Event feed card */}
             {drawerOpen && drawerKind === 'EVENT' && drawerLoc && (
               <div className="rounded-xl border border-purple-500/70 bg-neutral-950/95 p-4 shadow-xl">
                 <div className="mb-2 flex items-start justify-between gap-3">
@@ -186,12 +237,13 @@ export default function MapShell(props: MapShellProps) {
                   const ev = events.find((e) => e.locationId === drawerLoc.id);
                   if (!ev) return null;
 
-                  const hasLinks =
-                    Array.isArray(ev.socialLinks) &&
-                    ev.socialLinks.length > 0;
+                  const primaryLink =
+                    Array.isArray(ev.socialLinks) && ev.socialLinks.length > 0
+                      ? ev.socialLinks[0].url
+                      : undefined;
 
                   return (
-                    <div className="space-y-3 text-sm">
+                    <div className="space-y-4 text-sm">
                       <div className="flex flex-col gap-3 md:flex-row">
                         {/* IMAGE THUMB */}
                         {ev.imageUrl && (
@@ -206,61 +258,31 @@ export default function MapShell(props: MapShellProps) {
                         )}
 
                         <div className="flex-1">
-                          {ev.startISO && (
-                            <div className="mb-1 text-xs text-neutral-400">
-                              {formatShortDate(ev.startISO)}
-                            </div>
-                          )}
-
                           {ev.description && (
                             <p className="whitespace-pre-line text-neutral-200">
                               {ev.description}
                             </p>
                           )}
 
-                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-300">
-                            {ev.locationText && (
-                              <span className="rounded-full bg-neutral-900 px-2 py-0.5">
-                                {ev.locationText}
-                              </span>
-                            )}
-                            {ev.countryCode && (
-                              <span className="rounded-full bg-neutral-900 px-2 py-0.5">
-                                {ev.countryCode}
-                                {ev.postalCode && ` • ${ev.postalCode}`}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* SOCIAL LINKS */}
-                          {hasLinks && (
-                            <div className="mt-3 space-y-1">
-                              <div className="text-xs font-semibold text-purple-200">
-                                Links
-                              </div>
-                              <div className="flex flex-wrap gap-2">
-                                {ev.socialLinks!.map((s, idx) => (
-                                  <button
-                                    key={`${s.platform}-${idx}`}
-                                    type="button"
-                                    onClick={() => {
-                                      if (s.url) {
-                                        window.open(s.url, '_blank');
-                                      }
-                                    }}
-                                    className="rounded-full border border-purple-400 bg-purple-500/10 px-3 py-1 text-xs text-purple-100 hover:bg-purple-500/20"
-                                  >
-                                    {s.platform}
-                                  </button>
-                                ))}
-                              </div>
+                          {/* Single LINK pill – same idea as feed */}
+                          {primaryLink && (
+                            <div className="mt-3">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  window.open(primaryLink, '_blank')
+                                }
+                                className="inline-flex items-center gap-1 rounded-full border border-purple-400 bg-purple-500/10 px-3 py-1 text-xs font-medium text-purple-100 hover:bg-purple-500/20"
+                              >
+                                Link
+                              </button>
                             </div>
                           )}
                         </div>
                       </div>
 
-                      {/* HOST + MESSAGE HOST */}
-                      <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-xs text-neutral-300">
+                      {/* HOST + MESSAGE HOST – matches feed info but with CTA */}
+                      <div className="mt-1 flex flex-wrap items-center justify-between gap-3 text-xs text-neutral-300">
                         <div>
                           <span className="opacity-70">Hosted by </span>
                           <span className="font-semibold text-purple-200">
@@ -270,8 +292,8 @@ export default function MapShell(props: MapShellProps) {
                         {ev.postedBy?.id && (
                           <button
                             type="button"
-                            onClick={() => openDM(ev.postedBy!.id)}
-                            className="inline-flex items-center rounded-md border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-xs font-semibold text-purple-200 hover:bg-purple-500/20"
+                            onClick={() => openDM(ev.postedBy.id)}
+                            className="inline-flex items-center rounded-full border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-xs font-semibold text-purple-200 hover:bg-purple-500/20"
                           >
                             Message host
                           </button>
@@ -283,7 +305,7 @@ export default function MapShell(props: MapShellProps) {
               </div>
             )}
 
-            {/* COLLAB MAP DRAWER (green, with image + links + host) */}
+            {/* COLLAB MAP DRAWER – mirrors Collaboration feed card */}
             {drawerOpen && drawerKind === 'COLLAB' && drawerLoc && (
               <div className="rounded-xl border border-emerald-500/70 bg-neutral-950/95 p-4 shadow-xl">
                 <div className="mb-2 flex items-start justify-between gap-3">
@@ -313,12 +335,14 @@ export default function MapShell(props: MapShellProps) {
                   );
                   if (!c) return null;
 
-                  const links = (c as any).socialLinks as
-                    | SimpleLink[]
-                    | undefined;
+                  const primaryLink =
+                    Array.isArray((c as any).socialLinks) &&
+                    (c as any).socialLinks.length > 0
+                      ? (c as any).socialLinks[0].url
+                      : undefined;
 
                   return (
-                    <div className="space-y-3 text-sm">
+                    <div className="space-y-4 text-sm">
                       <div className="flex flex-col gap-3 md:flex-row">
                         {/* IMAGE THUMB */}
                         {c.imageUrl && (
@@ -345,54 +369,25 @@ export default function MapShell(props: MapShellProps) {
                             </p>
                           )}
 
-                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-300">
-                            {c.locationText && (
-                              <span className="rounded-full bg-neutral-900 px-2 py-0.5">
-                                {c.locationText}
-                              </span>
-                            )}
-                            {c.countryCode && (
-                              <span className="rounded-full bg-neutral-900 px-2 py-0.5">
-                                {c.countryCode}
-                                {c.postalCode && ` • ${c.postalCode}`}
-                              </span>
-                            )}
-                            {c.priceText && (
-                              <span className="rounded-full bg-neutral-900 px-2 py-0.5">
-                                {c.priceText}
-                              </span>
-                            )}
-                          </div>
+                          {/* Single LINK pill – same style concept as feed */}
+                          {primaryLink && (
+                            <div className="mt-3">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  window.open(primaryLink, '_blank')
+                                }
+                                className="inline-flex items-center gap-1 rounded-full border border-emerald-400 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-100 hover:bg-emerald-500/20"
+                              >
+                                Link
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
 
-                      {/* LINKS – same pattern as Events */}
-                      {Array.isArray(links) && links.length > 0 && (
-                        <div className="space-y-1">
-                          <div className="text-xs font-semibold text-emerald-200">
-                            Links
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {links.map((s, idx) => (
-                              <button
-                                key={`${s.platform}-${idx}`}
-                                type="button"
-                                onClick={() => {
-                                  if (s.url) {
-                                    window.open(s.url, '_blank');
-                                  }
-                                }}
-                                className="rounded-full border border-emerald-400 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-100 hover:bg-emerald-500/20"
-                              >
-                                {s.platform || 'Link'}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* MESSAGE HOST BUTTON */}
-                      <div className="flex justify-end">
+                      {/* MESSAGE HOST CTA */}
+                      <div className="mt-1 flex justify-end">
                         <button
                           type="button"
                           onClick={() => openDM(c.postedBy.id)}
@@ -408,32 +403,26 @@ export default function MapShell(props: MapShellProps) {
               </div>
             )}
 
-            {/* USER PROFILE EDIT DRAWER */}
+            {/* USER PROFILE VIEW / EDIT DRAWER */}
             <UserDrawer
               open={userDrawerOpen}
               user={drawerUser}
               currentUserId={currentUser.id}
-              stars={drawerUser ? userStars[drawerUser.id] ?? 0 : 0}
-              onGiveStar={(uid) => giveUserStar(uid)}
+              currentUserRole={currentUser.role}
+              onToggleAdminRole={onToggleAdminRole}
               onFollow={(uid) => toggleFollowUser(uid)}
               onMessage={(uid) => openDM(uid)}
               onBlock={(uid) => alert(`Block ${uid}`)}
               onReport={(uid) => alert(`Report ${uid}`)}
               onSave={(updated) => {
-                setUsersById((prev: Record<string, UserMini>) => ({
-                  ...prev,
-                  [updated.id]: updated,
-                }));
-                if (updated.id === currentUser.id) {
-                  setCurrentUser((u: any) => ({
-                    ...u,
-                    name: updated.name,
-                    avatarUrl: updated.avatarUrl,
-                  }));
-                }
+                onSaveUserProfile(updated);
                 setDrawerUser(updated);
               }}
+              isFollowing={
+                drawerUser ? followedUsers.includes(drawerUser.id) : false
+              }
               onClose={() => setUserDrawerOpen(false)}
+              variant="center"
             />
           </div>
         </div>
@@ -441,3 +430,9 @@ export default function MapShell(props: MapShellProps) {
     </section>
   );
 }
+
+
+
+
+
+

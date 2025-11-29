@@ -8,6 +8,7 @@ import {
   Store,
   User as UserIcon,
   Mail,
+  Clapperboard,
 } from 'lucide-react';
 
 import { SectionDisclaimer } from '@/components/ParaverseScope';
@@ -20,8 +21,15 @@ import type {
   DMThread,
 } from '@/types/paraverse';
 import type { UserMini } from '@/components/UserDrawer';
+import type { CreatorPost } from '@/components/feed/CreatorsFeed';
 
-type ProfileFilter = 'posts' | 'events' | 'marketplace' | 'collabs' | 'messages';
+type ProfileFilter =
+  | 'posts'
+  | 'events'
+  | 'marketplace'
+  | 'collabs'
+  | 'creators'
+  | 'messages';
 
 type Props = {
   selectedUserId: string;
@@ -35,6 +43,7 @@ type Props = {
   userEventsForSelected: EventItem[];
   userMarketForSelected: MarketplaceItem[];
   userCollabsForSelected: CollabItem[];
+  userCreatorsForSelected: CreatorPost[];
 
   sortedNotifications: NotificationItem[];
   sortedDmThreads: DMThread[];
@@ -43,24 +52,41 @@ type Props = {
   handleNotificationClick: (n: NotificationItem) => void;
   openDM: (userId: string) => void;
   openEditProfile: () => void;
+
+  onOpenPostFromProfile: (postId: string) => void;
+  onOpenEventFromProfile: (eventId: string) => void;
+  onOpenMarketFromProfile: (itemId: string) => void;
+  onOpenCollabFromProfile: (collabId: string) => void;
+  onOpenCreatorFromProfile: (creatorPostId: string) => void;
 };
 
 export default function ProfileHubSection({
   selectedUserId,
   currentUser,
   usersById,
+
   profileFilter,
   setProfileFilter,
+
   postsForSelectedUser,
   userEventsForSelected,
   userMarketForSelected,
   userCollabsForSelected,
+  userCreatorsForSelected,
+
   sortedNotifications,
   sortedDmThreads,
+
   formatShortDate,
   handleNotificationClick,
   openDM,
   openEditProfile,
+
+  onOpenPostFromProfile,
+  onOpenEventFromProfile,
+  onOpenMarketFromProfile,
+  onOpenCollabFromProfile,
+  onOpenCreatorFromProfile,
 }: Props) {
   const user = usersById[selectedUserId] ?? {
     id: selectedUserId,
@@ -85,7 +111,7 @@ export default function ProfileHubSection({
         </SectionDisclaimer>
       </div>
 
-      {/* Icon nav bar: posts / collabs / events / marketplace / profile / messages */}
+      {/* Icon nav bar: posts / collabs / events / marketplace / creators / profile / messages */}
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
         {/* POSTS – cyan / blue */}
         <button
@@ -141,6 +167,20 @@ export default function ProfileHubSection({
         >
           <Store size={14} className="shrink-0" />
           <span>Marketplace</span>
+        </button>
+
+        {/* CREATORS – orange */}
+        <button
+          type="button"
+          onClick={() => setProfileFilter('creators')}
+          className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 ${
+            profileFilter === 'creators'
+              ? 'border-orange-500 bg-orange-500/20 text-orange-50 shadow-md'
+              : 'border-orange-500 bg-orange-500/5 text-orange-300'
+          }`}
+        >
+          <Clapperboard size={14} className="shrink-0" />
+          <span>Creators</span>
         </button>
 
         {/* PROFILE – red, only for your own hub */}
@@ -215,26 +255,21 @@ export default function ProfileHubSection({
                   : 'This user has not posted anything yet.'}
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {postsForSelectedUser.map((p) => (
-                  <div
+                  <button
                     key={p.id}
-                    className="rounded-lg border border-neutral-800 bg-neutral-900 p-3 text-sm"
+                    type="button"
+                    onClick={() => onOpenPostFromProfile(p.id)}
+                    className="flex w-full items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-left text-sm hover:border-cyan-500/60 hover:bg-neutral-900/80"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="font-semibold text-white">
-                        {p.title}
-                      </h3>
-                      <span className="text-[11px] text-neutral-500">
-                        {formatShortDate(p.createdAt)}
-                      </span>
-                    </div>
-                    {p.desc && (
-                      <p className="mt-1 text-xs text-neutral-300 line-clamp-3">
-                        {p.desc}
-                      </p>
-                    )}
-                  </div>
+                    <span className="font-semibold text-white line-clamp-1">
+                      {p.title || 'Untitled post'}
+                    </span>
+                    <span className="ml-2 shrink-0 text-[10px] uppercase tracking-wide text-neutral-500">
+                      {formatShortDate(p.createdAt)}
+                    </span>
+                  </button>
                 ))}
               </div>
             )}
@@ -254,28 +289,23 @@ export default function ProfileHubSection({
                 No events found for this user.
               </div>
             ) : (
-              <div className="space-y-3 text-sm">
+              <div className="space-y-2 text-sm">
                 {userEventsForSelected.map((ev) => (
-                  <div
+                  <button
                     key={ev.id}
-                    className="rounded-lg border border-neutral-800 bg-neutral-900 p-3"
+                    type="button"
+                    onClick={() => onOpenEventFromProfile(ev.id)}
+                    className="flex w-full items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-left hover:border-purple-500/60 hover:bg-neutral-900/80"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="font-semibold text-white">
-                        {ev.title}
-                      </h3>
-                      <span className="text-[11px] text-neutral-500">
-                        {ev.startISO
-                          ? formatShortDate(ev.startISO)
-                          : ''}
+                    <span className="font-semibold text-white line-clamp-1">
+                      {ev.title || 'Untitled event'}
+                    </span>
+                    {ev.startISO && (
+                      <span className="ml-2 shrink-0 text-[10px] uppercase tracking-wide text-neutral-500">
+                        {formatShortDate(ev.startISO)}
                       </span>
-                    </div>
-                    {ev.locationText && (
-                      <p className="mt-1 text-xs text-neutral-300">
-                        {ev.locationText}
-                      </p>
                     )}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
@@ -295,24 +325,23 @@ export default function ProfileHubSection({
                 No marketplace listings for this user.
               </div>
             ) : (
-              <div className="space-y-3 text-sm">
+              <div className="space-y-2 text-sm">
                 {userMarketForSelected.map((item) => (
-                  <div
+                  <button
                     key={item.id}
-                    className="rounded-lg border border-neutral-800 bg-neutral-900 p-3"
+                    type="button"
+                    onClick={() => onOpenMarketFromProfile(item.id)}
+                    className="flex w-full items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-left hover:border-yellow-500/60 hover:bg-neutral-900/80"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="font-semibold text-white">
-                        {item.title}
-                      </h3>
-                      <span className="text-[11px] text-neutral-500">
-                        {item.kind}
+                    <span className="font-semibold text-white line-clamp-1">
+                      {item.title || 'Untitled listing'}
+                    </span>
+                    {item.createdAt && (
+                      <span className="ml-2 shrink-0 text-[10px] uppercase tracking-wide text-neutral-500">
+                        {formatShortDate(item.createdAt as any)}
                       </span>
-                    </div>
-                    <p className="mt-1 text-xs text-neutral-300 line-clamp-3">
-                      {item.description}
-                    </p>
-                  </div>
+                    )}
+                  </button>
                 ))}
               </div>
             )}
@@ -332,28 +361,62 @@ export default function ProfileHubSection({
                 No collaboration posts for this user.
               </div>
             ) : (
-              <div className="space-y-3 text-sm">
-                {userCollabsForSelected.map((c) => (
-                  <div
-                    key={c.id}
-                    className="rounded-lg border border-neutral-800 bg-neutral-900 p-3"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="font-semibold text-white">
-                        {c.title}
-                      </h3>
-                      {c.dateISO && (
-                        <span className="text-[11px] text-neutral-500">
-                          {formatShortDate(c.dateISO)}
+              <div className="space-y-2 text-sm">
+                {userCollabsForSelected.map((c) => {
+                  const collabDate =
+                    c.dateISO ?? (c.createdAt as any);
+
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => onOpenCollabFromProfile(c.id)}
+                      className="flex w-full items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-left hover:border-emerald-500/60 hover:bg-neutral-900/80"
+                    >
+                      <span className="font-semibold text-white line-clamp-1">
+                        {c.title || 'Untitled collab'}
+                      </span>
+                      {collabDate && (
+                        <span className="ml-2 shrink-0 text-[10px] uppercase tracking-wide text-neutral-500">
+                          {formatShortDate(collabDate)}
                         </span>
                       )}
-                    </div>
-                    {c.locationText && (
-                      <p className="mt-1 text-xs text-neutral-300">
-                        {c.locationText}
-                      </p>
-                    )}
-                  </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CREATORS VIEW */}
+        {profileFilter === 'creators' && (
+          <div>
+            <h2 className="mb-2 text-sm font-semibold text-orange-200">
+              {isSelf
+                ? 'Your creator posts'
+                : `${user.name}'s creator posts`}
+            </h2>
+            {userCreatorsForSelected.length === 0 ? (
+              <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 text-sm text-neutral-400">
+                No creator posts for this user.
+              </div>
+            ) : (
+              <div className="space-y-2 text-sm">
+                {userCreatorsForSelected.map((cp) => (
+                  <button
+                    key={cp.id}
+                    type="button"
+                    onClick={() => onOpenCreatorFromProfile(cp.id)}
+                    className="flex w-full items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-left hover:border-orange-500/60 hover:bg-neutral-900/80"
+                  >
+                    <span className="font-semibold text-white line-clamp-1">
+                      {cp.title || 'Untitled video'}
+                    </span>
+                    <span className="ml-2 shrink-0 text-[10px] uppercase tracking-wide text-neutral-500">
+                      {formatShortDate(cp.createdAt)}
+                    </span>
+                  </button>
                 ))}
               </div>
             )}
@@ -416,8 +479,7 @@ export default function ProfileHubSection({
                   {sortedDmThreads.map((t) => {
                     const last = t.messages[t.messages.length - 1];
                     const hasUnread = t.messages.some(
-                      (m) =>
-                        !m.read && m.toUserId === currentUser.id,
+                      (m) => !m.read && m.toUserId === currentUser.id,
                     );
                     return (
                       <button
@@ -460,3 +522,7 @@ export default function ProfileHubSection({
     </>
   );
 }
+
+
+
+

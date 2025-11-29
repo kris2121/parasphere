@@ -31,7 +31,10 @@ type Props = {
 
   currentUserId: string;
 
-  // NEW: "View on map" behaviour injected from page.tsx
+  // NEW: admin flag so admins can manage any location
+  isAdmin: boolean;
+
+  // "View on map" behaviour injected from page.tsx
   onViewOnMap: (locId: string) => void;
 
   // feed actions for owner controls / DM
@@ -55,6 +58,7 @@ export default function LocationsSection({
   openAddLocation,
   formatShortDate,
   currentUserId,
+  isAdmin,
   onViewOnMap,
   onEditLocation,
   onDeleteLocation,
@@ -127,6 +131,7 @@ export default function LocationsSection({
         <LocationsFeed
           items={items}
           currentUserId={currentUserId}
+          isAdmin={isAdmin}
           // IMAGE CLICK → open drawer (via openFromPin)
           onOpenLocation={(locId) => {
             const loc = locationsByStars.find((l) => l.id === locId);
@@ -147,6 +152,7 @@ export default function LocationsSection({
     </>
   );
 }
+
 
 
 

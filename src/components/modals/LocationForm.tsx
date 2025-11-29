@@ -7,18 +7,30 @@ type CountryOption = {
   name: string;
 };
 
+type SocialLink = {
+  platform: string;
+  url: string;
+};
+
 type LocationFormProps = {
+  mode: 'create' | 'edit';
+  initialLocation?: {
+    id: string;
+    title?: string;
+    summary?: string;
+    address?: string;
+    countryCode?: string;
+    postalCode?: string;
+    website?: string;
+    verifiedByOwner?: boolean;
+    socialLinks?: SocialLink[];
+  };
   handleAddLocation: (e: FormEvent<HTMLFormElement>) => void;
   locImg: string | null;
   locImgChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   country: string;
   countries: CountryOption[];
   onCancel: () => void;
-};
-
-type SocialLink = {
-  platform: string;
-  url: string;
 };
 
 const SOCIAL_OPTIONS: SocialLink['platform'][] = [
@@ -30,6 +42,8 @@ const SOCIAL_OPTIONS: SocialLink['platform'][] = [
 ];
 
 export default function LocationForm({
+  mode,
+  initialLocation,
   handleAddLocation,
   locImg,
   locImgChange,
@@ -37,10 +51,17 @@ export default function LocationForm({
   countries,
   onCancel,
 }: LocationFormProps) {
-  const [links, setLinks] = useState<SocialLink[]>([]);
+  // Start with any existing links + website if editing
+  const [links, setLinks] = useState<SocialLink[]>(
+    initialLocation?.socialLinks ?? [],
+  );
+
   const [platform, setPlatform] = useState<SocialLink['platform']>('YouTube');
   const [url, setUrl] = useState('');
-  const [primaryUrl, setPrimaryUrl] = useState(''); // feeds the existing "website" field
+
+  const [primaryUrl, setPrimaryUrl] = useState(
+    initialLocation?.website ?? '',
+  );
 
   function addLink() {
     const trimmed = url.trim();
@@ -49,7 +70,7 @@ export default function LocationForm({
     const next = [...links, { platform, url: trimmed }];
     setLinks(next);
 
-    // first added link becomes the primary website value
+    // First added link becomes the primary website value if none set yet
     if (!primaryUrl) {
       setPrimaryUrl(trimmed);
     }
@@ -67,11 +88,17 @@ export default function LocationForm({
     });
   }
 
+  const headerText = mode === 'edit' ? 'Edit Location' : 'Add Location';
+
   return (
     <form onSubmit={handleAddLocation} className="space-y-3">
-      <h3 className="text-lg font-semibold text-white">Add Location</h3>
+      <h3 className="text-lg font-semibold text-white">{headerText}</h3>
 
-      {/* Hidden fields – keep behaviour compatible with existing handler */}
+      {/* Hidden fields – ID for edit, plus socialLinks + website JSON */}
+      {mode === 'edit' && initialLocation?.id && (
+        <input type="hidden" name="id" value={initialLocation.id} />
+      )}
+
       <input
         type="hidden"
         name="socialLinks"
@@ -84,6 +111,7 @@ export default function LocationForm({
         name="title"
         placeholder="Location title"
         required
+        defaultValue={initialLocation?.title ?? ''}
         className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white"
       />
 
@@ -91,6 +119,7 @@ export default function LocationForm({
       <textarea
         name="summary"
         placeholder="Describe the location, history, access details, any important rules or requirements, and pricing…"
+        defaultValue={initialLocation?.summary ?? ''}
         className="min-h-[140px] w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white"
       />
 
@@ -98,6 +127,7 @@ export default function LocationForm({
       <input
         name="address"
         placeholder="Contact info (email, phone or booking contact)"
+        defaultValue={initialLocation?.address ?? ''}
         className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white"
       />
 
@@ -182,8 +212,10 @@ export default function LocationForm({
             </label>
             <select
               name="country"
-              defaultValue={country}
               required
+              defaultValue={
+                initialLocation?.countryCode ?? country
+              }
               className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white"
             >
               {countries.map((c) => (
@@ -202,6 +234,7 @@ export default function LocationForm({
               name="postal"
               placeholder="Post code"
               required
+              defaultValue={initialLocation?.postalCode ?? ''}
               className="w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white"
             />
           </div>
@@ -236,12 +269,12 @@ export default function LocationForm({
           <input
             type="checkbox"
             name="verifiedByOwner"
+            defaultChecked={initialLocation?.verifiedByOwner ?? false}
             className="mt-[2px] h-4 w-4 rounded border-red-500 bg-neutral-900"
           />
           <span>
             <span className="font-semibold">Legal owner declaration</span>
-            <span className="ml-1 text-red-200/80">
-            </span>
+            <span className="ml-1 text-red-200/80" />
           </span>
         </label>
 
@@ -264,4 +297,3 @@ export default function LocationForm({
     </form>
   );
 }
-

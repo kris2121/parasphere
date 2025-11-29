@@ -7,7 +7,7 @@ type Props = {
   mode: 'create' | 'edit';
   initialItem?: {
     id: string;
-    kind: 'Product' | 'Service';
+    kind: 'For Sale' | 'Wanted';
     title: string;
     description: string;
     imageUrl?: string;
@@ -88,7 +88,7 @@ export default function MarketplaceForm({
         value={JSON.stringify(links)}
       />
 
-      {/* PRODUCT / SERVICE TOGGLE */}
+{/* FOR SALE / WANTED TOGGLE (kind still Product/Service under the hood) */}
       <div className="flex items-center gap-4 text-sm">
         <label className="flex items-center gap-1">
           <input
@@ -100,7 +100,7 @@ export default function MarketplaceForm({
             }
             className="accent-yellow-400"
           />
-          <span>Product</span>
+          <span>For Sale</span>
         </label>
         <label className="flex items-center gap-1">
           <input
@@ -110,7 +110,7 @@ export default function MarketplaceForm({
             defaultChecked={initialItem?.kind === 'Service'}
             className="accent-yellow-400"
           />
-          <span>Service</span>
+          <span>Wanted</span>
         </label>
       </div>
 
@@ -126,7 +126,7 @@ export default function MarketplaceForm({
       {/* DESCRIPTION */}
       <textarea
         name="desc"
-        placeholder="Describe the product or service, condition, what's included, delivery/collection details, etc."
+        placeholder="Describe the Item, delivery/collection and relevent details, etc."
         required
         defaultValue={initialItem?.description ?? ''}
         className="min-h-[120px] w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white"

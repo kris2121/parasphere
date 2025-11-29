@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, FormEvent } from 'react';
 /** Local copy of the shape we use elsewhere */
 type MarketplaceItem = {
   id: string;
-  kind: 'Product' | 'Service';
+  kind: 'For Sale' | 'Wanted';
   title: string;
   description: string;
   price?: number;
@@ -25,7 +25,7 @@ type Props = {
 export default function AddListingModal({ open, onClose, onCreate }: Props) {
   if (!open) return null;
 
-  const [kind, setKind] = useState<'Product' | 'Service'>('Product');
+  const [kind, setKind] = useState<'For Sale' | 'Wanted'>('Product');
   const [title, setTitle] = useState('');
   const [desc, setDesc] = useState('');
   const [price, setPrice] = useState<string>('');
@@ -98,11 +98,11 @@ export default function AddListingModal({ open, onClose, onCreate }: Props) {
 
           <select
             value={kind}
-            onChange={(e) => setKind(e.target.value as 'Product' | 'Service')}
+            onChange={(e) => setKind(e.target.value as 'For Sale' | 'Wanted')}
             className="rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2"
           >
-            <option value="Product">Product</option>
-            <option value="Service">Service</option>
+            <option value="For Sale">For Sale</option>
+            <option value="Wanted">Wanted</option>
           </select>
 
           <input

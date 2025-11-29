@@ -15,13 +15,14 @@ type HomeSectionProps = {
   setFeedFilter: (v: 'favLocations' | 'favUsers' | 'all') => void;
 
   filteredPosts: any[];
-  editPost: (id: string, patch: Partial<any>) => void;
+  onStartEditPost: (post: any) => void;
   deletePost: (id: string) => void;
   canEditPost: (p: any) => boolean;
 
   comments: Record<string, any[]>;
   openComment: (key: string, parentId?: string) => void;
   openEditComment: (key: string, id: string) => void;
+  onDeleteComment: (key: string, id: string) => void;
   canEditComment: (c: any) => boolean;
 
   usersById: Record<string, UserMini>;
@@ -32,6 +33,9 @@ type HomeSectionProps = {
 
   setPostFormOpen: (open: boolean) => void;
   onOpenImage: (src: string) => void;
+
+  // 🔹 NEW: when a tagged location chip is clicked
+  onOpenLocationFromTag: (locationId: string) => void;
 };
 
 export default function HomeSection(props: HomeSectionProps) {
@@ -40,12 +44,13 @@ export default function HomeSection(props: HomeSectionProps) {
     feedFilter,
     setFeedFilter,
     filteredPosts,
-    editPost,
+    onStartEditPost,
     deletePost,
     canEditPost,
     comments,
     openComment,
     openEditComment,
+    onDeleteComment,
     canEditComment,
     usersById,
     followedUsers,
@@ -53,6 +58,7 @@ export default function HomeSection(props: HomeSectionProps) {
     sortPosts,
     setPostFormOpen,
     onOpenImage,
+    onOpenLocationFromTag,
   } = props;
 
   return (
@@ -126,20 +132,25 @@ export default function HomeSection(props: HomeSectionProps) {
         <HomeFeed
           currentUser={currentUser}
           posts={filteredPosts}
-          onEditPost={editPost}
+          onEditPost={onStartEditPost}
           onDeletePost={deletePost}
           canEditPost={canEditPost}
           comments={comments}
           onOpenComment={openComment}
           onOpenEditComment={openEditComment}
+          onDeleteComment={onDeleteComment}
           canEditComment={canEditComment}
           usersById={usersById}
           followedUsers={followedUsers}
           onOpenUser={openUser}
           sortPosts={sortPosts}
           onOpenImage={onOpenImage}
+          onOpenLocationFromTag={onOpenLocationFromTag}
         />
       </div>
     </div>
   );
 }
+
+
+

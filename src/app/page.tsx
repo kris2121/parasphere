@@ -9,10 +9,65 @@ import React, {
 } from 'react';
 
 import {
+  loadLocations,
+  createLocation,
+  createLocationWithImage,
+  updateLocation as dbUpdateLocation,
+  deleteLocationDoc,
+} from '@/lib/db/locations';
+
+import {
+  loadEvents,
+  createEvent,
+  updateEventDoc,
+  deleteEventDoc,
+} from '@/lib/db/events';
+
+import {
+  loadMarketplace,
+  createMarketplaceItem,
+  updateMarketplaceDoc,
+  deleteMarketplaceDoc,
+} from '@/lib/db/marketplace';
+
+import {
+  loadCollabs,
+  createCollab,
+  updateCollabDoc,
+  deleteCollabDoc,
+} from '@/lib/db/collabs';
+
+import {
+  loadPosts,
+  createPost,
+  updatePostDoc,
+  deletePostDoc,
+} from '@/lib/db/posts';
+
+import {
+  createComment,
+  updateComment as updateCommentDoc,
+  deleteCommentDoc,
+  loadCommentsByKey,
+  type CommentDB,
+} from '@/lib/db/comments';
+
+import {
+  loadCreatorPosts,
+  createCreatorPostDoc,
+  updateCreatorPostDoc,
+  deleteCreatorPostDoc,
+} from '@/lib/db/creators';
+
+import {
   ScopeProvider,
   useScope,
   useCountries,
 } from '@/components/ParaverseScope';
+
+import { useRouter } from 'next/navigation';
+
+import { loadAdminRoles, setUserAdminRole } from '@/lib/db/adminRoles';
 
 import type {
   DemoPost,
@@ -26,7 +81,7 @@ import type {
   SocialLink,
 } from '@/types/paraverse';
 
-import type { TabKey } from '@/components/ParaverseTopBar';
+import type { TabKey } from '@/components/ParaverseHeader';
 import type { LocationData, LiveMapHandle } from '@/components/LiveMap';
 import type { UserMini } from '@/components/UserDrawer';
 
@@ -46,6 +101,7 @@ import EventForm from '@/components/modals/EventForm';
 import MarketplaceForm from '@/components/MarketplaceForm';
 import CollaborationForm from '@/components/CollaborationForm';
 import CommentForm from '@/components/modals/CommentForm';
+import { createUser, updateUserDoc, loadUser } from '@/lib/db/users';
 
 import { useImagePreview } from '@/hooks/useImagePreview';
 import Modal from '@/components/Modal';
@@ -53,9 +109,23 @@ import DMModal from '@/components/modals/DMModal';
 import { geocodePostal } from '@/lib/geocodePostal';
 import { minutesAgo, formatShortDate } from '@/lib/dateUtils';
 
+import CreatorsSection from '@/components/sections/CreatorsSection';
+import type { CreatorPost } from '@/components/feed/CreatorsFeed';
+import CreatorForm from '@/components/modals/CreatorForm';
+
+import { auth, storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import {
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+} from 'firebase/auth';
+
 /* ========================================================================== */
 /*  MAIN PAGE WRAPPER                                                         */
 /* ========================================================================== */
+const ADMIN_USER_ID = 'paraverse_admin';
 
 export default function Page() {
   return (
@@ -65,27 +135,337 @@ export default function Page() {
   );
 }
 
+const SUPERADMIN_EMAILS = [
+  'northwestboilers@gmail.com', // 👈 replace with your Google sign-in email
+];
+
 /* ========================================================================== */
 /*  PAGE INNER                                                                */
 /* ========================================================================== */
 
 function PageInner() {
+  const router = useRouter();
+
   /* ------------------------------------------------------------------------ */
-  /*  USER                                                                    */
+  /*  USER + MASTER ADMIN (DEFAULT FALLBACK BEFORE AUTH)                      */
   /* ------------------------------------------------------------------------ */
 
   const [currentUser, setCurrentUser] = useState<{
     id: string;
     name: string;
     avatarUrl?: string;
+    role: 'user' | 'admin' | 'superadmin';
   }>({
-    id: 'u_current',
-    name: 'You',
+    id: ADMIN_USER_ID,
+    name: 'Paraverse Admin',
+    avatarUrl: undefined,
+    role: 'superadmin',
   });
 
   const [usersById, setUsersById] = useState<Record<string, UserMini>>({
-    u_current: { id: 'u_current', name: 'You' },
+    [ADMIN_USER_ID]: {
+      id: ADMIN_USER_ID,
+      name: 'Paraverse Admin',
+      avatarUrl: undefined,
+      role: 'superadmin',
+    },
+
+    u_demo_2: {
+      id: 'u_demo_2',
+      name: 'Haunted Helen',
+      avatarUrl:
+        'https://ui-avatars.com/api/?name=Haunted+Helen&background=111827&color=ffffff',
+      role: 'user',
+    },
   });
+
+  /* ------------------------------------------------------------------------ */
+  /*  PERMISSION HELPERS + ADMIN ROLE TOGGLE                                  */
+  /* ------------------------------------------------------------------------ */
+
+  // Basic role flags from the current user
+  const isSuperAdmin = currentUser.role === 'superadmin';
+  const isAdmin = isSuperAdmin || currentUser.role === 'admin';
+
+  function canManageByOwnerId(ownerId?: string | null) {
+    if (isAdmin) return true;
+    if (!ownerId) return false;
+    return ownerId === currentUser.id;
+  }
+
+  function ensureCanManage(ownerId?: string | null) {
+    if (canManageByOwnerId(ownerId)) return true;
+    window.alert('You can only manage your own content.');
+    return false;
+  }
+
+  // Superadmin-only: toggle another user's admin role
+  async function handleToggleAdminRole(
+    userId: string,
+    nextRole: 'user' | 'admin',
+  ) {
+    // Only superadmin can change roles
+    if (!isSuperAdmin) {
+      window.alert('Only the Paraverse superadmin can change admin roles.');
+      return;
+    }
+
+    // Never allow changing your own role from the UI
+    if (userId === currentUser.id) {
+      window.alert('You cannot change your own admin role.');
+      return;
+    }
+
+    const makeAdmin = nextRole === 'admin';
+
+    try {
+      // 1) Persist to Firestore (adminRoles collection)
+      await setUserAdminRole(userId, makeAdmin);
+
+      // 2) Reflect in local user map so the drawer updates immediately
+      setUsersById((prev) => ({
+        ...prev,
+        [userId]: {
+          ...(prev[userId] ?? { id: userId, name: 'User' }),
+          role: nextRole,
+        },
+      }));
+
+      console.log(
+        `[Admin] Updated role for ${userId}: ${makeAdmin ? 'admin' : 'user'}`,
+      );
+    } catch (err) {
+      console.error('[Admin] Failed to update admin role', err);
+      window.alert('Failed to update admin role. Please try again.');
+    }
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /*  AUTH: GOOGLE SIGN-IN + LISTENER + ROLES                                */
+  /* ------------------------------------------------------------------------ */
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      if (!fbUser) {
+        // Logged out → boot them to the login page
+        router.push('/login');
+        return;
+      }
+
+      (async () => {
+        const name =
+          fbUser.displayName ||
+          fbUser.email ||
+          'Paraverse user';
+
+        // Default role
+        let role: 'user' | 'admin' | 'superadmin' = 'user';
+
+        try {
+          const roles = await loadAdminRoles();
+          const email = (fbUser.email || '').toLowerCase();
+
+          const docSupers = roles.superadmins.map((e) =>
+            String(e).toLowerCase(),
+          );
+          const fallbackSupers = SUPERADMIN_EMAILS.map((e) =>
+            e.toLowerCase(),
+          );
+
+          if (
+            email &&
+            (docSupers.includes(email) || fallbackSupers.includes(email))
+          ) {
+            role = 'superadmin';
+          } else if (roles.admins.includes(fbUser.uid)) {
+            role = 'admin';
+          }
+        } catch (err) {
+          console.error(
+            '[Auth] Failed to load admin roles, using default user role',
+            err,
+          );
+        }
+
+        // Switch to the real Firebase user with resolved role
+        setCurrentUser({
+          id: fbUser.uid,
+          name,
+          avatarUrl: fbUser.photoURL || undefined,
+          role,
+        });
+
+        // Make sure they exist in usersById so DMs / tags work
+        setUsersById((prev) => ({
+          ...prev,
+          [fbUser.uid]: {
+            ...(prev[fbUser.uid] ?? { id: fbUser.uid }),
+            id: fbUser.uid,
+            name,
+            avatarUrl: fbUser.photoURL || prev[fbUser.uid]?.avatarUrl,
+            role,
+          },
+        }));
+      })();
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+  /* ------------------------------------------------------------------------ */
+  /*  ADMIN ROLES → HYDRATE INTO usersById (FOR DRAWER LABELS)               */
+  /* ------------------------------------------------------------------------ */
+
+  useEffect(() => {
+    async function hydrateAdminRoles() {
+      try {
+        const roles = await loadAdminRoles();
+
+        // Mark all admin userIds as role: 'admin' in usersById
+        setUsersById((prev) => {
+          const next = { ...prev };
+
+          (roles.admins || []).forEach((uid) => {
+            const existing = next[uid] ?? { id: uid, name: 'User' };
+            next[uid] = {
+              ...existing,
+              role: 'admin',
+            };
+          });
+
+          return next;
+        });
+      } catch (err) {
+        console.error('[Admin] Failed to hydrate admin roles from Firestore', err);
+      }
+    }
+
+    hydrateAdminRoles();
+  }, []);
+
+  /* ------------------------------------------------------------------------ */
+  /*  LOGIN / LOGOUT ACTIONS (LISTENER HANDLES REDIRECTS)                     */
+  /* ------------------------------------------------------------------------ */
+
+  async function handleLoginWithGoogle() {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      // listener will update state
+    } catch (err) {
+      console.error('[Auth] Google sign-in failed', err);
+      window.alert('Google sign-in failed. Please try again.');
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await signOut(auth);
+      // listener will redirect to /login
+    } catch (err) {
+      console.error('[Auth] Sign-out failed', err);
+    }
+  }
+
+
+  /* ------------------------------------------------------------------------ */
+  /*  REPORT NOTIFICATIONS (CONTENT + USER)                                   */
+  /* ------------------------------------------------------------------------ */
+
+  function pushReportNotification(opts: {
+    kind: 'report_creator' | 'report_user';
+    targetType: 'creator' | 'profile';
+    targetId: string;
+    actorId: string;
+    actorName: string;
+    extraLabel?: string;
+  }) {
+    const { kind, targetType, targetId, actorId, actorName, extraLabel } = opts;
+
+    const text =
+      kind === 'report_creator'
+        ? `reported a creator video${extraLabel ? `: "${extraLabel}"` : ''}.`
+        : `reported a user${extraLabel ? `: "${extraLabel}"` : ''}.`;
+
+    const notification: NotificationItem = {
+      id: crypto.randomUUID(),
+      kind, // you'll extend the union in types/paraverse
+      createdAt: new Date().toISOString(),
+      read: false,
+      actor: {
+        id: actorId,
+        name: actorName,
+      },
+      text,
+      target: {
+        type: targetType as any, // 'creator' | 'profile'
+        id: targetId,
+      },
+    };
+
+    setNotifications((prev) => [notification, ...prev]);
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /*  LOAD USER PROFILE (FIRESTORE)                                           */
+  /* ------------------------------------------------------------------------ */
+
+  useEffect(() => {
+    async function fetchUserProfile() {
+      try {
+        const user = await loadUser(currentUser.id);
+
+        if (!user) {
+          console.log(
+            `[User] No Firestore profile found for ${currentUser.id}`,
+          );
+          return;
+        }
+
+        // Determine role from Firestore → local → fallback
+        const effectiveRole =
+          (user.role as 'user' | 'admin' | 'superadmin' | undefined) ??
+          usersById[user.id]?.role ??
+          'user';
+
+        const mini: UserMini = {
+          id: user.id,
+          name: user.name,
+          avatarUrl: user.avatarUrl ?? undefined,
+          bio: user.bio ?? undefined,
+          country: user.country ?? undefined,
+          socialLinks: user.socialLinks ?? [],
+          role: effectiveRole,
+        };
+
+        // Update currentUser, but never override superadmin privilege
+        setCurrentUser((prev) => ({
+          ...prev,
+          name: mini.name,
+          avatarUrl: mini.avatarUrl,
+          role:
+            prev.role === 'superadmin'
+              ? prev.role
+              : effectiveRole,
+        }));
+
+        // Store in usersById
+        setUsersById((prev) => ({
+          ...prev,
+          [mini.id]: {
+            ...(prev[mini.id] ?? { id: mini.id }),
+            ...mini,
+          },
+        }));
+
+        console.log('[User] Loaded Firestore profile:', mini);
+      } catch (err) {
+        console.error('[User] Failed to load profile on mount', err);
+      }
+    }
+
+    fetchUserProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   /* ------------------------------------------------------------------------ */
   /*  GLOBAL IMAGE LIGHTBOX                                                   */
@@ -94,7 +474,7 @@ function PageInner() {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   /* ------------------------------------------------------------------------ */
-  /*  TABS, MAP, DRAWERS                                                      */
+  /*  TABS, MAP, DRAWERS, PROFILE HUB                                         */
   /* ------------------------------------------------------------------------ */
 
   const [tab, setTab] = useState<TabKey>('home');
@@ -111,6 +491,9 @@ function PageInner() {
 
   const [userDrawerOpen, setUserDrawerOpen] = useState(false);
   const [drawerUser, setDrawerUser] = useState<UserMini | undefined>(undefined);
+
+  // 🔴 profile hub is *only* for the current user
+  const [profileHubOpen, setProfileHubOpen] = useState(false);
 
   /* ------------------------------------------------------------------------ */
   /*  STAR COUNTS                                                             */
@@ -142,23 +525,211 @@ function PageInner() {
     }));
 
   /* ------------------------------------------------------------------------ */
-  /*  DATA ARRAYS                                                             */
+  /*  EVENT & COUNTRY CONTEXT                                                 */
+  /* ------------------------------------------------------------------------ */
+
+  const { country } = useScope();
+  const countries = useCountries();
+
+  /* ------------------------------------------------------------------------ */
+  /*  DATA ARRAYS + HELPERS                                                   */
   /* ------------------------------------------------------------------------ */
 
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [posts, setPosts] = useState<DemoPost[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
+  const [editingPost, setEditingPost] = useState<DemoPost | null>(null);
+
+  // Helper: remove undefined values before sending to Firestore
+  const stripUndefined = (obj: Record<string, any>) =>
+    Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+
+  // Upload image to Firebase Storage
+  async function uploadImageToStorage(file: File, path: string): Promise<string> {
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    return url;
+  }
+
+  function dataUrlToFile(dataUrl: string, filename: string): File {
+    const [header, base64] = dataUrl.split(',');
+    const match = header.match(/data:(.*?);base64/);
+    const mime = match?.[1] || 'image/png';
+
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    return new File([bytes], filename, { type: mime });
+  }
+
   const [market, setMarket] = useState<MarketplaceItem[]>([]);
   const [collabs, setCollabs] = useState<CollabItem[]>([]);
 
-  function updateEvent(id: string, patch: Partial<EventItem>) {
+  // existing creator state
+  const [creatorPosts, setCreatorPosts] = useState<CreatorPost[]>([]);
+  const [creatorFormOpen, setCreatorFormOpen] = useState(false);
+  const [editingCreator, setEditingCreator] =
+    useState<CreatorPost | null>(null);
+
+  // Load locations whenever country changes
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchLocations() {
+      try {
+        const data = await loadLocations(country);
+        if (!cancelled) {
+          setLocations(data);
+        }
+      } catch (err) {
+        console.error('Error loading locations', err);
+      }
+    }
+
+    fetchLocations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [country]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchMarketplace() {
+      try {
+        const items = await loadMarketplace();
+        if (cancelled) return;
+        setMarket(items);
+      } catch (err) {
+        console.error('Failed to load marketplace items', err);
+      }
+    }
+
+    fetchMarketplace();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // LOAD POSTS FROM FIRESTORE
+  useEffect(() => {
+    loadPosts()
+      .then((loaded) => {
+        setPosts(loaded);
+        console.log('Loaded posts:', loaded.length);
+      })
+      .catch((err) => console.error('Error loading posts', err));
+  }, []);
+
+  // Load events from Firestore whenever country changes
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchEvents() {
+      try {
+        const data = await loadEvents(country);
+        if (!cancelled) {
+          setEvents(data);
+        }
+      } catch (err) {
+        console.error('Error loading events', err);
+      }
+    }
+
+    fetchEvents();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [country]);
+
+  // TEMPORARY CLEANUP – remove orphan EVENT locations
+  useEffect(() => {
+    async function cleanupOrphanEventLocations() {
+      if (!locations.length) return;
+
+      const eventLocIds = new Set(
+        events
+          .map((e) => e.locationId)
+          .filter((id): id is string => !!id),
+      );
+
+      const orphans = locations.filter(
+        (l) => l.type === 'EVENT' && !eventLocIds.has(l.id),
+      );
+
+      if (!orphans.length) return;
+
+      console.log('[Cleanup] Found orphan event locations:', orphans.length);
+
+      for (const loc of orphans) {
+        try {
+          await deleteLocationDoc(loc.id);
+          console.log('[Cleanup] Deleted orphan event location', loc.id);
+        } catch (err) {
+          console.error('[Cleanup] Failed to delete location', loc.id, err);
+        }
+      }
+    }
+
+    cleanupOrphanEventLocations();
+  }, [locations, events]);
+
+  // Continue as normal…
+  async function updateEvent(id: string, patch: Partial<EventItem>) {
     setEvents((prev) =>
-      prev.map((ev) => (ev.id === id ? { ...ev, ...patch } : ev)),
+      prev.map((ev) => (ev.id === id ? ({ ...ev, ...patch } as EventItem) : ev)),
     );
+
+    try {
+      await updateEventDoc(id, stripUndefined(patch as any));
+      console.log('[Event] Firestore update OK', id);
+    } catch (err) {
+      console.error('[Event] Firestore update FAILED', err);
+    }
   }
 
-  function deleteEvent(id: string) {
+  async function deleteEvent(id: string) {
+    // Find the event so we know which location it was using
+    const target = events.find((ev) => ev.id === id) || null;
+    if (!target) return;
+
+    if (!ensureCanManage(target.postedBy?.id)) {
+      return;
+    }
+
+    const locId = target.locationId;
+
+    // Optimistic UI update: remove event from local state
     setEvents((prev) => prev.filter((ev) => ev.id !== id));
+
+    // Also remove its location locally so the pin disappears
+    if (locId) {
+      setLocations((prev) => prev.filter((l) => l.id !== locId));
+    }
+
+    try {
+      // Delete event doc in Firestore
+      await deleteEventDoc(id);
+      console.log('[Event] Firestore delete OK', id);
+
+      // Delete linked location doc in Firestore (if we had one)
+      if (locId) {
+        await deleteLocationDoc(locId);
+        console.log('[Event] linked location deleted OK', locId);
+      }
+    } catch (err) {
+      console.error('[Event] Firestore delete FAILED', err);
+    }
   }
 
   const [editingListing, setEditingListing] =
@@ -168,42 +739,189 @@ function PageInner() {
     'All' | 'Product' | 'Service'
   >('Product');
 
+  // LOAD CREATOR POSTS
+  useEffect(() => {
+    loadCreatorPosts()
+      .then((loaded) => {
+        setCreatorPosts(loaded);
+        console.log('Loaded creator posts:', loaded.length);
+      })
+      .catch((err) => console.error('Error loading creator posts', err));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchCollabs() {
+      try {
+        const items = await loadCollabs();
+        if (cancelled) return;
+        setCollabs(items);
+      } catch (err) {
+        console.error('Failed to load collaborations', err);
+      }
+    }
+
+    fetchCollabs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   /* ------------------------------------------------------------------------ */
   /*  COMMENTS SYSTEM                                                         */
   /* ------------------------------------------------------------------------ */
 
   const [comments, setComments] = useState<Record<string, Comment[]>>({});
 
-  function addComment(key: string, c: Comment) {
-    setComments((prev) => ({ ...prev, [key]: [c, ...(prev[key] ?? [])] }));
+  function mapDBToComment(row: CommentDB): Comment {
+    return {
+      id: row.id,
+      text: row.text,
+      authorId: row.authorId,
+      authorName: row.authorName,
+      createdAt: row.createdAt,
+      imageUrl: row.imageUrl,
+      parentId: row.parentId ?? null,
+      tagUserIds: row.tagUserIds ?? [],
+    };
   }
 
-  function updateComment(key: string, id: string, patch: Partial<Comment>) {
+  useEffect(() => {
+    async function fetchAllComments() {
+      try {
+        const keys: string[] = [
+          ...posts.map((p) => `post:${p.id}`),
+          ...locations.map((l) => `loc:${l.id}`),
+        ];
+
+        const uniqueKeys = Array.from(new Set(keys));
+        if (uniqueKeys.length === 0) {
+          console.log('[Comments] fetchAllComments: no keys');
+          setComments({});
+          return;
+        }
+
+        console.log(
+          '[Comments] fetchAllComments: keys =',
+          uniqueKeys.join(', '),
+        );
+
+        const all: Record<string, Comment[]> = {};
+
+        for (const key of uniqueKeys) {
+          const list = await loadCommentsByKey(key);
+          all[key] = list.map(mapDBToComment);
+        }
+
+        console.log('[Comments] fetchAllComments: done');
+        setComments(all);
+      } catch (err) {
+        console.error('[Comments] Failed to load comments', err);
+      }
+    }
+
+    if (posts.length || locations.length) {
+      fetchAllComments();
+    }
+  }, [posts, locations]);
+
+  function upsertLocalComment(key: string, comment: Comment) {
     setComments((prev) => {
       const arr = prev[key] ?? [];
-      return {
-        ...prev,
-        [key]: arr.map((c) => (c.id === id ? { ...c, ...patch } : c)),
-      };
+      const existingIndex = arr.findIndex((c) => c.id === comment.id);
+      let next: Comment[];
+
+      if (existingIndex === -1) {
+        next = [...arr, comment];
+      } else {
+        next = [...arr];
+        next[existingIndex] = comment;
+      }
+
+      next.sort((a, b) => a.createdAt - b.createdAt);
+
+      return { ...prev, [key]: next };
     });
   }
 
-  function deleteComment(key: string, id: string) {
+  function removeLocalComment(key: string, id: string) {
     setComments((prev) => ({
       ...prev,
-      [key]: (prev[key] ?? []).filter((x) => x.id !== id),
+      [key]: (prev[key] ?? []).filter((c) => c.id !== id),
     }));
   }
 
+  async function addCommentForKey(key: string, c: Comment) {
+    const row: CommentDB = {
+      id: c.id,
+      key,
+      text: c.text,
+      authorId: c.authorId,
+      authorName: c.authorName,
+      parentId: c.parentId ?? null,
+      imageUrl: c.imageUrl,
+      tagUserIds: c.tagUserIds ?? [],
+      createdAt: c.createdAt,
+      updatedAt: c.createdAt,
+    };
+
+    try {
+      await createComment(row);
+    } catch (err) {
+      console.error(
+        '[Comments] Firestore create failed – keeping local only',
+        err,
+      );
+    }
+
+    upsertLocalComment(key, c);
+  }
+
+  async function updateCommentForKey(
+    key: string,
+    id: string,
+    patch: Partial<Comment>,
+  ) {
+    setComments((prev) => {
+      const arr = prev[key] ?? [];
+      const next = arr.map((c) => (c.id === id ? { ...c, ...patch } : c));
+      return { ...prev, [key]: next };
+    });
+
+    const dbPatch: Partial<CommentDB> = {};
+    if (patch.text !== undefined) dbPatch.text = patch.text;
+    if (patch.imageUrl !== undefined) dbPatch.imageUrl = patch.imageUrl;
+    if (patch.tagUserIds !== undefined) dbPatch.tagUserIds = patch.tagUserIds;
+    if (patch.parentId !== undefined) dbPatch.parentId = patch.parentId;
+
+    try {
+      await updateCommentDoc(id, dbPatch);
+    } catch (err) {
+      console.error('[Comments] Firestore update failed', err);
+    }
+  }
+
+  async function deleteCommentForKey(key: string, id: string) {
+    removeLocalComment(key, id);
+
+    try {
+      await deleteCommentDoc(id);
+    } catch (err) {
+      console.error('[Comments] Firestore delete failed', err);
+    }
+  }
+
+  // 🔑 MASTER ADMIN: can edit any comment
   function canEditComment(c: Comment) {
-    return c.authorId === currentUser.id;
+    return c.authorId === currentUser.id || isAdmin;
   }
 
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentKey, setCommentKey] = useState<string | null>(null);
-  const [activeReplyParentId, setActiveReplyParentId] = useState<string | null>(
-    null,
-  );
+  const [activeReplyParentId, setActiveReplyParentId] =
+    useState<string | null>(null);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
 
   const [commentText, setCommentText] = useState('');
@@ -256,20 +974,20 @@ function PageInner() {
     cImgClear();
   }
 
-  function submitComment() {
+  async function submitComment() {
     if (!commentKey) return;
 
     const trimmed = commentText.trim();
     if (!trimmed && !cImg) return;
 
     if (editingCommentId) {
-      updateComment(commentKey, editingCommentId, {
+      await updateCommentForKey(commentKey, editingCommentId, {
         text: trimmed,
         imageUrl: cImg,
         tagUserIds: commentTags,
       });
     } else {
-      addComment(commentKey, {
+      const newComment: Comment = {
         id: crypto.randomUUID(),
         text: trimmed,
         authorId: currentUser.id,
@@ -278,7 +996,9 @@ function PageInner() {
         parentId: activeReplyParentId,
         imageUrl: cImg,
         tagUserIds: commentTags,
-      });
+      };
+
+      await addCommentForKey(commentKey, newComment);
     }
 
     resetCommentState();
@@ -290,6 +1010,10 @@ function PageInner() {
     return comments[reviewKey] ?? [];
   }, [drawerLoc, comments]);
 
+  function onDeleteComment(key: string, id: string) {
+    void deleteCommentForKey(key, id);
+  }
+
   /* ------------------------------------------------------------------------ */
   /*  DM SYSTEM                                                               */
   /* ------------------------------------------------------------------------ */
@@ -298,6 +1022,56 @@ function PageInner() {
   const [dmRecipientId, setDmRecipientId] = useState<string | null>(null);
   const [dmRecipientName, setDmRecipientName] = useState<string | null>(null);
   const [dmText, setDmText] = useState('');
+
+  const [dmThreads, setDmThreads] = useState<DMThread[]>([
+    {
+      id: 't1',
+      otherUser: {
+        id: 'u_demo_5',
+        name: 'Graveyard Shift',
+      },
+      lastMessageAt: minutesAgo(10),
+      messages: [
+        {
+          id: 'm1',
+          threadId: 't1',
+          fromUserId: 'u_demo_5',
+          toUserId: ADMIN_USER_ID,
+          text: 'Hey, fancy teaming up at Newsham Park soon?',
+          createdAt: minutesAgo(15),
+          read: true,
+        },
+        {
+          id: 'm2',
+          threadId: 't1',
+          fromUserId: ADMIN_USER_ID,
+          toUserId: 'u_demo_5',
+          text: 'Yeah, that sounds great – I’m free next month.',
+          createdAt: minutesAgo(10),
+          read: true,
+        },
+      ],
+    },
+    {
+      id: 't2',
+      otherUser: {
+        id: 'u_demo_6',
+        name: 'SpiritBoxTV',
+      },
+      lastMessageAt: minutesAgo(60),
+      messages: [
+        {
+          id: 'm3',
+          threadId: 't2',
+          fromUserId: 'u_demo_6',
+          toUserId: ADMIN_USER_ID,
+          text: 'Can we cross-promote our events on Paraverse?',
+          createdAt: minutesAgo(60),
+          read: false,
+        },
+      ],
+    },
+  ]);
 
   function markThreadRead(fromUserId: string) {
     setDmThreads((prev) =>
@@ -371,6 +1145,10 @@ function PageInner() {
   }
 
   function openDM(userId: string) {
+    if (userId === currentUser.id) {
+      return; // no DM to self
+    }
+
     const u = usersById[userId];
     setDmRecipientId(userId);
     setDmRecipientName(u?.name ?? 'User');
@@ -457,13 +1235,12 @@ function PageInner() {
     }
   }, [feedFilter, posts, followedLocations, followedUsers]);
 
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
     null,
   );
 
   const [profileFilter, setProfileFilter] = useState<
-    'posts' | 'events' | 'marketplace' | 'collabs' | 'messages'
+    'posts' | 'events' | 'marketplace' | 'collabs' | 'messages' | 'creators'
   >('posts');
 
   /* ------------------------------------------------------------------------ */
@@ -505,57 +1282,20 @@ function PageInner() {
         name: 'NightWatchTeam',
       },
       text: 'started following your profile.',
-      target: { type: 'profile', id: 'u_current' },
+      target: { type: 'profile', id: ADMIN_USER_ID },
     },
-  ]);
-
-  const [dmThreads, setDmThreads] = useState<DMThread[]>([
+    // 🔔 New notification that points to another user's profile
     {
-      id: 't1',
-      otherUser: {
-        id: 'u_demo_5',
-        name: 'Graveyard Shift',
+      id: 'n4',
+      kind: 'follow',
+      createdAt: minutesAgo(20),
+      read: false,
+      actor: {
+        id: 'u_demo_2',
+        name: 'Haunted Helen',
       },
-      lastMessageAt: minutesAgo(10),
-      messages: [
-        {
-          id: 'm1',
-          threadId: 't1',
-          fromUserId: 'u_demo_5',
-          toUserId: 'u_current',
-          text: 'Hey, fancy teaming up at Newsham Park soon?',
-          createdAt: minutesAgo(15),
-          read: true,
-        },
-        {
-          id: 'm2',
-          threadId: 't1',
-          fromUserId: 'u_current',
-          toUserId: 'u_demo_5',
-          text: 'Yeah, that sounds great – I’m free next month.',
-          createdAt: minutesAgo(10),
-          read: true,
-        },
-      ],
-    },
-    {
-      id: 't2',
-      otherUser: {
-        id: 'u_demo_6',
-        name: 'SpiritBoxTV',
-      },
-      lastMessageAt: minutesAgo(60),
-      messages: [
-        {
-          id: 'm3',
-          threadId: 't2',
-          fromUserId: 'u_demo_6',
-          toUserId: 'u_current',
-          text: 'Can we cross-promote our events on Paraverse?',
-          createdAt: minutesAgo(60),
-          read: false,
-        },
-      ],
+      text: 'updated their profile.',
+      target: { type: 'profile', id: 'u_demo_2' },
     },
   ]);
 
@@ -596,9 +1336,7 @@ function PageInner() {
 
   function handleNotificationClick(n: NotificationItem) {
     setNotifications((prev) =>
-      prev.map((item) =>
-        item.id === n.id ? { ...item, read: true } : item,
-      ),
+      prev.map((item) => (item.id === n.id ? { ...item, read: true } : item)),
     );
 
     if (!n.target) return;
@@ -606,25 +1344,44 @@ function PageInner() {
     switch (n.target.type) {
       case 'post':
         setTab('home');
-        setSelectedUserId(null);
+        setProfileHubOpen(false);
         break;
       case 'event':
         setTab('events');
-        setSelectedUserId(null);
+        setProfileHubOpen(false);
         break;
       case 'marketplace':
         setTab('marketplace');
-        setSelectedUserId(null);
+        setProfileHubOpen(false);
         break;
       case 'collab':
         setTab('collaboration');
-        setSelectedUserId(null);
+        setProfileHubOpen(false);
         break;
       case 'profile':
-        openUser(n.target.id);
+        // If it's *your* profile, open your hub, otherwise open their drawer
+        if (n.target.id === currentUser.id) {
+          setTab('home');
+          setProfileHubOpen(true);
+          setProfileFilter('posts');
+        } else {
+          openUser(n.target.id);
+        }
         break;
       default:
         break;
+    }
+  }
+
+  function handleLogoClick() {
+    if (currentUser.id === ADMIN_USER_ID) {
+      // Admin clicking logo → open own hub on posts
+      setTab('home');
+      setProfileFilter('posts');
+      setProfileHubOpen(true);
+    } else {
+      // Normal user → open Paraverse Admin drawer (support)
+      openUser(ADMIN_USER_ID);
     }
   }
 
@@ -634,11 +1391,38 @@ function PageInner() {
 
   function handleSelectTab(next: TabKey) {
     if (next === 'profile') {
-      openUser(currentUser.id);
+      // 🔴 Profile tab always opens YOUR hub
+      setProfileHubOpen(true);
+      setProfileFilter('posts');
       return;
     }
     setTab(next);
-    setSelectedUserId(null);
+    setProfileHubOpen(false);
+  }
+
+  function openPostFromProfile(postId: string) {
+    setProfileHubOpen(false);
+    setTab('home');
+  }
+
+  function openEventFromProfile(eventId: string) {
+    setProfileHubOpen(false);
+    setTab('events');
+  }
+
+  function openMarketFromProfile(itemId: string) {
+    setProfileHubOpen(false);
+    setTab('marketplace');
+  }
+
+  function openCollabFromProfile(collabId: string) {
+    setProfileHubOpen(false);
+    setTab('collaboration');
+  }
+
+  function openCreatorFromProfile(creatorPostId: string) {
+    setProfileHubOpen(false);
+    setTab('creators');
   }
 
   /* ------------------------------------------------------------------------ */
@@ -658,11 +1442,7 @@ function PageInner() {
         if (tab === 'events') return l.type === 'EVENT';
         if (tab === 'collaboration') return l.type === 'COLLAB';
 
-        if (
-          tab === 'home' ||
-          tab === 'locations' ||
-          tab === 'marketplace'
-        ) {
+        if (tab === 'home' || tab === 'locations' || tab === 'marketplace') {
           return l.type === 'HAUNTING';
         }
 
@@ -678,7 +1458,6 @@ function PageInner() {
   function openFromPin(loc: LocationData) {
     setDrawerLoc(loc);
     setSelectedLocationId(loc.id);
-    setSelectedUserId(null);
 
     if (loc.type === 'EVENT') {
       setDrawerKind('EVENT');
@@ -709,12 +1488,81 @@ function PageInner() {
     }
   }
 
+  // openUser now ONLY opens the User Drawer (never the hub)
   function openUser(userId: string) {
     const u = usersById[userId] ?? { id: userId, name: 'User' };
     setDrawerUser(u);
-    setUserDrawerOpen(false);
-    setSelectedUserId(userId);
-    setTab('home');
+    setUserDrawerOpen(true);
+    setProfileHubOpen(false);
+  }
+
+  async function handleSaveUserProfile(next: UserMini) {
+    try {
+      const exists = !!usersById[next.id];
+
+      // Resolve avatar URL (upload if data URL)
+      let finalAvatarUrl: string | null = next.avatarUrl ?? null;
+
+      if (finalAvatarUrl && finalAvatarUrl.startsWith('data:image')) {
+        try {
+          const file = dataUrlToFile(
+            finalAvatarUrl,
+            `avatar_${next.id}_${Date.now()}.png`,
+          );
+
+          const path = `avatars/${next.id}/${file.name}`;
+          finalAvatarUrl = await uploadImageToStorage(file, path);
+          console.log('[User] uploaded avatar to Storage:', finalAvatarUrl);
+        } catch (err) {
+          console.error('[User] avatar upload failed, keeping null', err);
+          finalAvatarUrl = null;
+        }
+      }
+
+      const payload: any = {
+        name: next.name,
+        bio: next.bio ?? null,
+        country: next.country ?? null,
+        avatarUrl: finalAvatarUrl,
+        socialLinks: next.socialLinks ?? [],
+        // role will be wired later via admin tools / Firestore rules
+      };
+
+      if (exists) {
+        await updateUserDoc(next.id, payload);
+      } else {
+        await createUser({
+          id: next.id,
+          ...payload,
+        });
+      }
+
+      const updatedMini: UserMini = {
+        ...next,
+        avatarUrl: finalAvatarUrl ?? undefined,
+      };
+
+      setUsersById((prev) => ({
+        ...prev,
+        [updatedMini.id]: {
+          ...(prev[updatedMini.id] ?? { id: updatedMini.id }),
+          ...updatedMini,
+        },
+      }));
+
+      if (updatedMini.id === currentUser.id) {
+        setCurrentUser((prev) => ({
+          ...prev,
+          name: updatedMini.name,
+          avatarUrl: updatedMini.avatarUrl,
+        }));
+      }
+
+      setDrawerUser(updatedMini);
+      setUserDrawerOpen(false);
+    } catch (err) {
+      console.error('[User] Failed to save profile', err);
+    }
   }
 
   function openEditProfile() {
@@ -729,20 +1577,25 @@ function PageInner() {
   }
 
   /* ------------------------------------------------------------------------ */
-  /*  LOCATION FEED ACTIONS (edit/delete/message)                             */
+  /*  LOCATION FEED ACTIONS                                                   */
   /* ------------------------------------------------------------------------ */
 
   function onEditLocation(locId: string) {
     const loc = locations.find((l) => l.id === locId);
     if (!loc) return;
 
+    if (!ensureCanManage((loc as any).ownerId)) return;
+
     setEditingLocation(loc);
     setLocFormOpen(true);
-    setSelectedUserId(null);
-    setTab('locations');
   }
 
   function onDeleteLocation(locId: string) {
+    const loc = locations.find((l) => l.id === locId);
+    if (!loc) return;
+
+    if (!ensureCanManage((loc as any).ownerId)) return;
+
     if (!window.confirm('Delete this location? This cannot be undone.')) return;
 
     setLocations((prev) => prev.filter((l) => l.id !== locId));
@@ -754,6 +1607,10 @@ function PageInner() {
     });
 
     setStarredLocations((prev) => prev.filter((id) => id !== locId));
+
+    deleteLocationDoc(locId).catch((err) => {
+      console.error('Failed to delete location from Firestore', err);
+    });
   }
 
   function onMessageLocationOwner(userId: string) {
@@ -761,33 +1618,51 @@ function PageInner() {
   }
 
   /* ------------------------------------------------------------------------ */
-  /*  POST FORM                                                               */
+  /*  POST FORM + HELPERS                                                     */
   /* ------------------------------------------------------------------------ */
 
-  const { url: postImg, onChange: postImgChange, clear: postImgClear } =
-    useImagePreview();
-
+  const {
+    url: postImg,
+    file: postFile,
+    onChange: postImgChange,
+    clear: postImgClear,
+  } = useImagePreview();
   const [postFormOpen, setPostFormOpen] = useState(false);
   const [postTagUsers, setPostTagUsers] = useState<string[]>([]);
   const [selectedLocId, setSelectedLocId] = useState<string>('');
   const [locQuery, setLocQuery] = useState('');
 
   const locationOptions = useMemo(() => {
-    const base = locations;
+    const base = locations.filter((l) => l.type === 'HAUNTING');
     const q = locQuery.trim().toLowerCase();
-    return q
-      ? base.filter((l) => l.title.toLowerCase().includes(q)).slice(0, 20)
-      : base.slice(0, 12);
+
+    const filtered = q
+      ? base.filter((l) => l.title.toLowerCase().includes(q))
+      : base;
+
+    return filtered.slice(0, 20);
   }, [locations, locQuery]);
 
-  function handleAddPost(e: FormEvent<HTMLFormElement>) {
+  const creatorLocationOptions = useMemo(
+    () =>
+      locations
+        .filter((l) => l.type === 'HAUNTING')
+        .map((l) => ({ id: l.id, name: l.title })),
+    [locations],
+  );
+
+  async function handleAddPost(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
     const fd = new FormData(e.currentTarget);
+
+    const id = String(fd.get('id') || '').trim();
+    const isEdit = !!id;
+
     const title = String(fd.get('title') || '').trim();
     const desc = String(fd.get('desc') || '').trim();
-
-    const linkUrl = String(fd.get('link') || '').trim() || undefined;
+    const linkUrlRaw = String(fd.get('link') || '').trim();
+    const linkUrl = linkUrlRaw || undefined;
     const rawLinkKind = String(fd.get('linkKind') || '').trim();
 
     const linkKind: DemoPost['linkKind'] =
@@ -801,22 +1676,74 @@ function PageInner() {
         ? 'other'
         : undefined;
 
-    const p: DemoPost = {
-      id: crypto.randomUUID(),
+    if (!title) return;
+
+    let uploadedImageUrl: string | undefined;
+
+    if (postFile) {
+      try {
+        const safeName = postFile.name.replace(/\s+/g, '_');
+        const path = `posts/${currentUser.id}/${Date.now()}_${safeName}`;
+        uploadedImageUrl = await uploadImageToStorage(postFile, path);
+        console.log('[Post] image uploaded:', uploadedImageUrl);
+      } catch (err) {
+        console.error('[Post] image upload failed', err);
+      }
+    }
+
+    if (isEdit) {
+      const patch: Partial<DemoPost> = {
+        title,
+        desc,
+      };
+
+      if (selectedLocId) patch.locationId = selectedLocId;
+      if (uploadedImageUrl) {
+        (patch as any).imageUrl = uploadedImageUrl;
+      }
+      if (linkUrl !== undefined) (patch as any).linkUrl = linkUrl;
+      if (linkKind !== undefined) (patch as any).linkKind = linkKind;
+      if (postTagUsers.length) (patch as any).tagUserIds = [...postTagUsers];
+
+      await editPost(id, patch);
+
+      postImgClear();
+      setPostTagUsers([]);
+      setSelectedLocId('');
+      setLocQuery('');
+      setPostFormOpen(false);
+      setEditingPost(null);
+      return;
+    }
+
+    const data: any = {
       type: 'Post',
       title,
       desc,
-      locationId: selectedLocId || undefined,
-      imageUrl: postImg,
-      linkUrl,
-      linkKind,
       authorId: currentUser.id,
       authorName: currentUser.name,
-      tagUserIds: postTagUsers,
       createdAt: Date.now(),
     };
 
-    setPosts((prev) => [p, ...prev]);
+    if (selectedLocId) data.locationId = selectedLocId;
+
+    if (uploadedImageUrl) {
+      data.imageUrl = uploadedImageUrl;
+    } else if (postImg) {
+      data.imageUrl = postImg;
+    }
+
+    if (linkUrl) data.linkUrl = linkUrl;
+    if (linkKind) data.linkKind = linkKind;
+    if (postTagUsers.length) data.tagUserIds = [...postTagUsers];
+
+    try {
+      const saved = await createPost(data);
+      setPosts((prev) => [saved, ...prev]);
+    } catch (err) {
+      console.error('Error creating post:', err);
+    }
+
     postImgClear();
     setPostTagUsers([]);
     setSelectedLocId('');
@@ -824,11 +1751,38 @@ function PageInner() {
     setPostFormOpen(false);
   }
 
-  function editPost(id: string, patch: Partial<DemoPost>) {
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  async function editPost(id: string, patch: Partial<DemoPost>) {
+    try {
+      const safePatch: Record<string, any> = {};
+      Object.entries(patch).forEach(([k, v]) => {
+        if (v !== undefined) safePatch[k] = v;
+      });
+
+      await updatePostDoc(id, safePatch);
+
+      setPosts((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, ...safePatch } : p)),
+      );
+    } catch (err) {
+      console.error('Error editing post:', err);
+    }
   }
 
-  function deletePost(id: string) {
+  async function deletePost(id: string) {
+    const target = posts.find((p) => p.id === id);
+    if (!target) return;
+
+    if (!canManageByOwnerId(target.authorId)) {
+      window.alert('You can only delete your own posts.');
+      return;
+    }
+
+    try {
+      await deletePostDoc(id);
+    } catch (err) {
+      console.error('Error deleting post from Firestore:', err);
+    }
+
     setPosts((prev) => prev.filter((p) => p.id !== id));
     setComments((prev) => {
       const next = { ...prev };
@@ -837,8 +1791,18 @@ function PageInner() {
     });
   }
 
+  // 🔑 MASTER ADMIN: can edit ANY post
   function canEditPost(p: DemoPost) {
-    return p.authorId === currentUser.id;
+    return canManageByOwnerId(p.authorId);
+  }
+
+  function startEditPost(post: DemoPost) {
+    setEditingPost(post);
+    setPostFormOpen(true);
+
+    setSelectedLocId(post.locationId || '');
+    setPostTagUsers(post.tagUserIds ?? []);
+    setLocQuery('');
   }
 
   /* ------------------------------------------------------------------------ */
@@ -852,8 +1816,12 @@ function PageInner() {
   const [editingLocation, setEditingLocation] =
     useState<LocationData | null>(null);
 
-  const { url: locImg, onChange: locImgChange, clear: locImgClear } =
-    useImagePreview();
+  const {
+    url: locImg,
+    file: locImgFile,
+    onChange: locImgChange,
+    clear: locImgClear,
+  } = useImagePreview();
 
   function openAddLocation() {
     const center = mapRef.current?.getCenter();
@@ -863,29 +1831,24 @@ function PageInner() {
 
     setEditingLocation(null);
     setTab('locations');
-    setSelectedUserId(null);
     setLocFormOpen(true);
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  EVENT & COUNTRY CONTEXT                                                 */
-  /* ------------------------------------------------------------------------ */
-
-  const { country } = useScope();
-  const countries = useCountries();
-
   async function handleAddLocation(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    console.log('[Location] submit started');
+
     const fd = new FormData(e.currentTarget);
 
     const title = String(fd.get('title') || '').trim();
-    if (!title) return;
+    if (!title) {
+      console.warn('[Location] missing title');
+      return;
+    }
 
     const summary = String(fd.get('summary') || '').trim() || undefined;
-    const address =
-      String(fd.get('address') || '').trim() || undefined;
+    const address = String(fd.get('address') || '').trim() || undefined;
 
-    // social links
     let socialLinks: SocialLink[] = [];
     const rawSocial = String(fd.get('socialLinks') || '[]');
 
@@ -905,19 +1868,21 @@ function PageInner() {
             url: x.url.trim(),
           }));
       }
-    } catch {
-      // ignore
+    } catch (err) {
+      console.warn('[Location] bad socialLinks JSON', err);
     }
 
     const primaryLink = socialLinks[0]?.url;
     const website =
-      primaryLink ||
-      (String(fd.get('website') || '').trim() || undefined);
+      primaryLink || (String(fd.get('website') || '').trim() || undefined);
 
     const countryCode = String(fd.get('country') || country).toUpperCase();
     const postalCodeRaw = String(fd.get('postal') || '').trim();
 
-    if (!postalCodeRaw) return;
+    if (!postalCodeRaw) {
+      console.warn('[Location] missing postal code');
+      return;
+    }
     const postalCode = postalCodeRaw;
 
     const editId = String(fd.get('id') || '').trim();
@@ -926,68 +1891,136 @@ function PageInner() {
     let lng = -2.5;
     let lat = 54.3;
 
-    const geo = await geocodePostal(countryCode, postalCode);
-    if (geo) {
-      lng = geo.lng;
-      lat = geo.lat;
-    } else if (newLoc) {
-      lng = newLoc.lng;
-      lat = newLoc.lat;
+    try {
+      const geo = await geocodePostal(countryCode, postalCode);
+      if (geo) {
+        lng = geo.lng;
+        lat = geo.lat;
+        console.log('[Location] geocode result', geo);
+      } else if (newLoc) {
+        lng = newLoc.lng;
+        lat = newLoc.lat;
+        console.log('[Location] using newLoc fallback', newLoc);
+      } else {
+        console.log('[Location] using default coords');
+      }
+    } catch (err) {
+      console.error('[Location] geocode failed, using default coords', err);
     }
 
     const verifiedByOwner = fd.get('verifiedByOwner') === 'on';
 
-    if (isEdit) {
-      setLocations((prev) =>
-        prev.map((l) =>
-          l.id === editId
-            ? ({
-                ...l,
-                title,
-                summary,
-                address,
-                website,
-                imageUrl: locImg || (l as any).imageUrl,
-                verifiedByOwner,
-                countryCode,
-                postalCode,
-                lat,
-                lng,
-                socialLinks,
-              } as LocationData)
-            : l,
-        ),
-      );
-    } else {
-      const id = crypto.randomUUID();
+    try {
+      if (isEdit) {
+        console.log('[Location] editing existing location', editId);
 
-      const loc: LocationData = {
-        id,
-        title,
-        type: 'HAUNTING',
-        lat,
-        lng,
-        summary,
-        address,
-        website,
-        imageUrl: locImg,
-        verifiedByOwner,
-        countryCode,
-        postalCode,
-        ownerId: currentUser.id,
-        ownerName: currentUser.name,
-        createdAt: Date.now(),
-        socialLinks,
-      } as any;
+        let uploadedImageUrl: string | undefined;
 
-      setLocations((prev) => [loc, ...prev]);
+        if (locImgFile) {
+          try {
+            const safeName = locImgFile.name.replace(/\s+/g, '_');
+            const path = `locations/${editId}_${Date.now()}_${safeName}`;
+            uploadedImageUrl = await uploadImageToStorage(locImgFile, path);
+            console.log(
+              '[Location] uploaded new image for edit',
+              uploadedImageUrl,
+            );
+          } catch (err) {
+            console.error('[Location] image upload failed for edit', err);
+          }
+        }
 
-      setFollowedLocations((prev) =>
-        prev.includes(id) ? prev : [id, ...prev],
-      );
+        setLocations((prev) =>
+          prev.map((l) =>
+            l.id === editId
+              ? ({
+                  ...l,
+                  title,
+                  summary,
+                  address,
+                  website,
+                  imageUrl: uploadedImageUrl ?? (l as any).imageUrl,
+                  verifiedByOwner,
+                  countryCode,
+                  postalCode,
+                  lat,
+                  lng,
+                  socialLinks,
+                } as LocationData)
+              : l,
+          ),
+        );
+
+        const patch = stripUndefined({
+          title,
+          summary,
+          address,
+          website,
+          imageUrl: uploadedImageUrl,
+          verifiedByOwner,
+          countryCode,
+          postalCode,
+          lat,
+          lng,
+          socialLinks,
+        });
+
+        try {
+          await dbUpdateLocation(editId, patch as any);
+          console.log('[Location] Firestore update OK');
+        } catch (err) {
+          console.error('[Location] Firestore update FAILED', err);
+        }
+      } else {
+        console.log('[Location] creating new location');
+
+        const baseWithoutId = {
+          title,
+          type: 'HAUNTING' as const,
+          lat,
+          lng,
+          summary,
+          address,
+          website,
+          verifiedByOwner,
+          countryCode,
+          postalCode,
+          ownerId: currentUser.id,
+          ownerName: currentUser.name,
+          socialLinks,
+        };
+
+        const cleanBase = stripUndefined(baseWithoutId);
+
+        let created: LocationData;
+
+        try {
+          created = await createLocationWithImage(
+            cleanBase as any,
+            locImgFile ?? null,
+          );
+          console.log('[Location] Firestore create OK, id:', created.id);
+        } catch (err) {
+          console.error(
+            '[Location] Firestore create FAILED – falling back to local only',
+            err,
+          );
+          created = {
+            id: crypto.randomUUID(),
+            ...(baseWithoutId as any),
+          } as LocationData;
+        }
+
+        setLocations((prev) => [created, ...prev]);
+
+        setFollowedLocations((prev) =>
+          prev.includes(created.id) ? prev : [created.id, ...prev],
+        );
+      }
+    } catch (err) {
+      console.error('[Location] handleAddLocation fatal error', err);
     }
 
-    setSelectedUserId(null);
     setTab('locations');
 
     if (mapRef.current?.focusOn) {
@@ -998,6 +2031,8 @@ function PageInner() {
     locImgClear();
     setNewLoc(null);
     setEditingLocation(null);
+
+    console.log('[Location] submit finished');
   }
 
   /* ------------------------------------------------------------------------ */
@@ -1005,18 +2040,27 @@ function PageInner() {
   /* ------------------------------------------------------------------------ */
 
   const [eventFormOpen, setEventFormOpen] = useState(false);
-  const { url: evImg, onChange: evImgChange, clear: evImgClear } =
-    useImagePreview();
+  const {
+    url: evImg,
+    file: evImgFile,
+    onChange: evImgChange,
+    clear: evImgClear,
+  } = useImagePreview();
 
   async function handleAddEvent(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
 
+    const id = String(fd.get('id') || '').trim();
+    const isEdit = !!id;
+
     const title = String(fd.get('title') || '').trim();
     if (!title) return;
 
-    const description = String(fd.get('desc') || '').trim() || undefined;
+    const description =
+      String(fd.get('desc') || '').trim() || undefined;
 
+    // SOCIAL LINKS
     let socialLinks: SocialLink[] = [];
     const rawSocial = String(fd.get('socialLinks') || '[]');
 
@@ -1037,7 +2081,7 @@ function PageInner() {
           }));
       }
     } catch {
-      // ignore
+      // ignore – stay with empty/socialLinks
     }
 
     const primaryLink = socialLinks[0]?.url;
@@ -1045,46 +2089,119 @@ function PageInner() {
     const countryCode = String(fd.get('country') || country).toUpperCase();
     const postalCode = String(fd.get('postal') || '').trim() || undefined;
 
-    let lat: number;
-    let lng: number;
-
-    if (postalCode) {
-      const geo = await geocodePostal(countryCode, postalCode);
-      if (geo) {
-        lng = geo.lng;
-        lat = geo.lat;
-      } else {
-        lng = -2.5;
-        lat = 54.3;
+    // upload new image file (if any) to Storage
+    let uploadedImageUrl: string | undefined;
+    if (evImgFile) {
+      try {
+        const safeName = evImgFile.name.replace(/\s+/g, '_');
+        const path = `events/${id || 'new'}_${Date.now()}_${safeName}`;
+        uploadedImageUrl = await uploadImageToStorage(evImgFile, path);
+        console.log('[Event] uploaded image:', uploadedImageUrl);
+      } catch (err) {
+        console.error('[Event] image upload failed', err);
       }
-    } else {
-      lng = -2.5;
-      lat = 54.3;
     }
 
-    const locId = crypto.randomUUID();
-    const eventLoc: LocationData = {
-      id: locId,
-      title,
-      type: 'EVENT',
-      lat,
-      lng,
-      summary: description,
-      address: undefined,
-      priceInfo: undefined,
-      website: primaryLink,
-      imageUrl: evImg,
-      countryCode,
-      postalCode,
-      ownerId: currentUser.id,
-    } as any;
+    // EDIT PATH
+    if (isEdit) {
+      const existing = events.find((ev) => ev.id === id) || null;
+      if (!existing) {
+        console.warn('[Event] edit requested for missing id', id);
+      }
 
-    setLocations((prev) => [eventLoc, ...prev]);
+      const patchBase: Partial<EventItem> = {
+        title,
+        description,
+        link: primaryLink,
+        imageUrl: uploadedImageUrl ?? existing?.imageUrl,
+        countryCode,
+        postalCode,
+        socialLinks,
+      };
 
-    setEvents((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
+      const patch = stripUndefined(patchBase as any);
+
+      // Optimistic UI
+      setEvents((prev) =>
+        prev.map((ev) =>
+          ev.id === id ? ({ ...ev, ...patch } as EventItem) : ev,
+        ),
+      );
+
+      try {
+        await updateEventDoc(id, patch as any);
+        console.log('[Event] Firestore update OK', id);
+      } catch (err) {
+        console.error('[Event] Firestore update FAILED', err);
+      }
+
+      setEventFormOpen(false);
+      setEditingEvent(null);
+      evImgClear();
+      return;
+    }
+
+    // CREATE PATH
+    let lat = 54.3;
+    let lng = -2.5;
+
+    if (postalCode) {
+      try {
+        const geo = await geocodePostal(countryCode, postalCode);
+        if (geo) {
+          lng = geo.lng;
+          lat = geo.lat;
+          console.log('[Event] geocode result', geo);
+        } else {
+          console.log('[Event] geocode returned no result, using default');
+        }
+      } catch (err) {
+        console.error('[Event] geocode failed, using default coords', err);
+      }
+    }
+
+    const now = Date.now();
+
+    try {
+      console.log('[Event] creating event location');
+
+      const locBaseWithoutId = {
+        title,
+        type: 'EVENT' as const,
+        lat,
+        lng,
+        summary: description,
+        address: undefined,
+        priceInfo: undefined,
+        website: primaryLink,
+        imageUrl: uploadedImageUrl,
+        countryCode,
+        postalCode,
+        ownerId: currentUser.id,
+        ownerName: currentUser.name,
+        socialLinks,
+      };
+
+      const cleanLoc = stripUndefined(locBaseWithoutId);
+      let loc: LocationData;
+
+      try {
+        loc = await createLocation(cleanLoc as any);
+        console.log('[Event] Firestore create location OK, id:', loc.id);
+      } catch (err) {
+        console.error(
+          '[Event] Firestore create location FAILED – local only',
+          err,
+        );
+        loc = {
+          id: crypto.randomUUID(),
+          ...(locBaseWithoutId as any),
+        } as LocationData;
+      }
+
+      setLocations((prev) => [loc, ...prev]);
+
+      const eventBase = {
         title,
         description,
         locationText: undefined,
@@ -1092,22 +2209,44 @@ function PageInner() {
         endISO: undefined,
         priceText: undefined,
         link: primaryLink,
-        imageUrl: evImg,
-        createdAt: Date.now(),
+        imageUrl: uploadedImageUrl,
+        createdAt: now,
         postedBy: { id: currentUser.id, name: currentUser.name },
         countryCode,
         postalCode,
-        locationId: locId,
+        locationId: loc.id,
         socialLinks,
-      },
-    ]);
+      };
 
-    if (mapRef.current?.focusOn) {
-      mapRef.current.focusOn(lng, lat, 10);
+      const cleanEvent = stripUndefined(eventBase);
+      let createdEvent: EventItem;
+
+      try {
+        createdEvent = await createEvent(cleanEvent as any);
+        console.log('[Event] Firestore create event OK, id:', createdEvent.id);
+      } catch (err) {
+        console.error(
+          '[Event] Firestore create event FAILED – local only',
+          err,
+        );
+        createdEvent = {
+          id: crypto.randomUUID(),
+          ...(eventBase as any),
+        } as EventItem;
+      }
+
+      setEvents((prev) => [...prev, createdEvent]);
+
+      if (mapRef.current?.focusOn) {
+        mapRef.current.focusOn(loc.lng, loc.lat, 10);
+      }
+
+      setEventFormOpen(false);
+      setEditingEvent(null);
+      evImgClear();
+    } catch (err) {
+      console.error('[Event] handleAddEvent fatal error', err);
     }
-
-    setEventFormOpen(false);
-    evImgClear();
   }
 
   /* ------------------------------------------------------------------------ */
@@ -1115,15 +2254,19 @@ function PageInner() {
   /* ------------------------------------------------------------------------ */
 
   const [listingFormOpen, setListingFormOpen] = useState(false);
-  const { url: mkImg, onChange: mkImgChange, clear: mkImgClear } =
-    useImagePreview();
+  const {
+    url: mkImg,
+    file: mkImgFile,
+    onChange: mkImgChange,
+    clear: mkImgClear,
+  } = useImagePreview();
 
   function startEditListing(item: MarketplaceItem) {
     setEditingListing(item);
     setListingFormOpen(true);
   }
 
-  function handleAddListing(e: FormEvent<HTMLFormElement>) {
+  async function handleAddListing(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
 
@@ -1158,7 +2301,7 @@ function PageInner() {
           }));
       }
     } catch {
-      // ignore
+      // ignore bad JSON
     }
 
     const primaryLink = socialLinks[0]?.url;
@@ -1171,44 +2314,66 @@ function PageInner() {
         ? editingListing.imageUrl
         : undefined;
 
-    const finalImage = mkImg || existingImage;
+    let uploadedImageUrl: string | undefined;
+    if (mkImgFile) {
+      try {
+        const safeName = mkImgFile.name.replace(/\s+/g, '_');
+        const path = `marketplace/${editId || 'new'}_${Date.now()}_${safeName}`;
+        uploadedImageUrl = await uploadImageToStorage(mkImgFile, path);
+        console.log('[Marketplace] uploaded image:', uploadedImageUrl);
+      } catch (err) {
+        console.error('[Marketplace] image upload failed', err);
+      }
+    }
 
-    if (isEdit) {
-      setMarket((prev) =>
-        prev.map((item) =>
-          item.id === editId
-            ? {
-                ...item,
-                kind,
-                title,
-                description,
-                webLink: primaryLink,
-                countryCode,
-                postalCode,
-                imageUrl: finalImage,
-                socialLinks,
-              }
-            : item,
-        ),
-      );
-    } else {
-      setMarket((prev) => [
-        {
-          id: crypto.randomUUID(),
+    const finalImage = uploadedImageUrl ?? existingImage;
+
+    try {
+      if (isEdit) {
+        const patch: any = {
           kind,
           title,
           description,
-          contactInfo: undefined,
-          webLink: primaryLink,
-          imageUrl: finalImage,
+          countryCode,
+        };
+
+        if (primaryLink) patch.webLink = primaryLink;
+        if (postalCode) patch.postalCode = postalCode;
+        if (finalImage) patch.imageUrl = finalImage;
+        if (socialLinks.length) patch.socialLinks = socialLinks;
+
+        await updateMarketplaceDoc(editId, patch);
+
+        setMarket((prev) =>
+          prev.map((item) =>
+            item.id === editId
+              ? {
+                  ...item,
+                  ...patch,
+                }
+              : item,
+          ),
+        );
+      } else {
+        const data: any = {
+          kind,
+          title,
+          description,
           createdAt: Date.now(),
           postedBy: { id: currentUser.id, name: currentUser.name },
           countryCode,
-          postalCode,
-          socialLinks,
-        },
-        ...prev,
-      ]);
+        };
+
+        if (primaryLink) data.webLink = primaryLink;
+        if (postalCode) data.postalCode = postalCode;
+        if (finalImage) data.imageUrl = finalImage;
+        if (socialLinks.length) data.socialLinks = socialLinks;
+
+        const created = await createMarketplaceItem(data);
+        setMarket((prev) => [created, ...prev]);
+      }
+    } catch (err) {
+      console.error('Failed to save marketplace listing', err);
     }
 
     setEditingListing(null);
@@ -1223,22 +2388,31 @@ function PageInner() {
   const [collabFormOpen, setCollabFormOpen] = useState(false);
   const [editingCollab, setEditingCollab] = useState<CollabItem | null>(null);
 
-  const { url: cbImg, onChange: cbImgChange, clear: cbImgClear } =
-    useImagePreview();
+  const {
+    url: cbImg,
+    file: cbImgFile,
+    onChange: cbImgChange,
+    clear: cbImgClear,
+  } = useImagePreview();
 
   async function handleAddCollab(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
 
-    const title = String(fd.get('title') || '').trim();
-    if (!title) return;
+    type SocialLinkLocal = { platform: string; url: string };
 
-    const description = String(fd.get('desc') || '').trim() || undefined;
+    const title = String(fd.get('title') || '').trim();
+    const description = String(fd.get('desc') || '').trim();
+
+    if (!title) return;
 
     const editId = String(fd.get('id') || '').trim();
     const isEdit = !!editId;
 
-    let socialLinks: SocialLink[] = [];
+    const hiddenLocationId =
+      String(fd.get('locationId') || '').trim() || undefined;
+
+    let socialLinks: SocialLinkLocal[] = [];
     const rawSocial = String(fd.get('socialLinks') || '[]');
 
     try {
@@ -1253,7 +2427,7 @@ function PageInner() {
               x.url.trim(),
           )
           .map((x) => ({
-            platform: x.platform as SocialLink['platform'],
+            platform: String(x.platform),
             url: x.url.trim(),
           }));
       }
@@ -1261,107 +2435,137 @@ function PageInner() {
       // ignore
     }
 
-    const primaryLink = socialLinks[0]?.url;
+    const primaryContact = socialLinks[0]?.url;
 
     const countryCode = String(fd.get('country') || country).toUpperCase();
     const postalCode = String(fd.get('postal') || '').trim() || undefined;
 
-    let lat: number;
-    let lng: number;
+    const existingImage =
+      isEdit && editingCollab && editingCollab.id === editId
+        ? editingCollab.imageUrl
+        : undefined;
 
-    if (postalCode) {
-      const geo = await geocodePostal(countryCode, postalCode);
-      if (geo) {
-        lng = geo.lng;
-        lat = geo.lat;
-      } else {
-        lng = -2.5;
-        lat = 54.3;
+    let uploadedImageUrl: string | undefined;
+    if (cbImgFile) {
+      try {
+        const safeName = cbImgFile.name.replace(/\s+/g, '_');
+        const path = `collabs/${editId || 'new'}_${Date.now()}_${safeName}`;
+        uploadedImageUrl = await uploadImageToStorage(cbImgFile, path);
+        console.log('[Collab] uploaded image:', uploadedImageUrl);
+      } catch (err) {
+        console.error('[Collab] image upload failed', err);
       }
-    } else {
-      lng = -2.5;
-      lat = 54.3;
     }
 
-    const existing = isEdit
-      ? collabs.find((c) => c.id === editId) || null
-      : null;
+    const finalImage = uploadedImageUrl ?? existingImage;
 
-    const locId = isEdit
-      ? existing?.locationId || crypto.randomUUID()
-      : crypto.randomUUID();
-
-    const finalImage = cbImg || (existing ? existing.imageUrl : undefined);
-
-    const baseLoc: LocationData = {
-      id: locId,
-      title,
-      type: 'COLLAB',
-      lat,
-      lng,
-      summary: description,
-      address: undefined,
-      priceInfo: undefined,
-      website: primaryLink,
-      imageUrl: finalImage,
-      countryCode,
-      postalCode,
-      ownerId: currentUser.id,
-    } as any;
-
-    setLocations((prev) => {
-      const exists = prev.some((l) => l.id === locId);
-      if (exists) {
-        return prev.map((l) => (l.id === locId ? { ...l, ...baseLoc } : l));
-      }
-      return [baseLoc, ...prev];
-    });
-
-    if (isEdit && editId && existing) {
-      setCollabs((prev) =>
-        prev.map((c) =>
-          c.id === editId
-            ? {
-                ...c,
-                title,
-                description,
-                imageUrl: finalImage,
-                countryCode,
-                postalCode,
-                locationId: locId,
-                socialLinks,
-              }
-            : c,
-        ),
-      );
-    } else {
-      setCollabs((prev) => [
-        {
-          id: crypto.randomUUID(),
+    try {
+      if (isEdit) {
+        const patch: any = {
           title,
-          description,
-          dateISO: undefined,
-          locationText: undefined,
-          priceText: undefined,
-          contact: undefined,
-          imageUrl: finalImage,
+          countryCode,
+        };
+
+        if (description) patch.description = description;
+        if (primaryContact) patch.contact = primaryContact;
+        if (postalCode) patch.postalCode = postalCode;
+        if (finalImage) patch.imageUrl = finalImage;
+        if (socialLinks.length) patch.socialLinks = socialLinks;
+        if (hiddenLocationId) patch.locationId = hiddenLocationId;
+
+        await updateCollabDoc(editId, patch);
+
+        setCollabs((prev) =>
+          prev.map((c) =>
+            c.id === editId
+              ? {
+                  ...c,
+                  ...patch,
+                }
+              : c,
+          ),
+        );
+      } else {
+        let lat = 54.3;
+        let lng = -2.5;
+
+        if (postalCode) {
+          try {
+            const geo = await geocodePostal(countryCode, postalCode);
+            if (geo) {
+              lng = geo.lng;
+              lat = geo.lat;
+              console.log('[Collab] geocode result', geo);
+            } else {
+              console.log(
+                '[Collab] geocode returned no result, using default',
+              );
+            }
+          } catch (err) {
+            console.error('[Collab] geocode failed, using default coords', err);
+          }
+        }
+
+        const locBaseWithoutId = {
+          title,
+          type: 'COLLAB' as const,
+          lat,
+          lng,
+          summary: description,
+          imageUrl: finalImage || undefined,
+          countryCode,
+          postalCode,
+          ownerId: currentUser.id,
+          ownerName: currentUser.name,
+          socialLinks,
+        };
+
+        const cleanLoc = stripUndefined(locBaseWithoutId);
+        let loc: LocationData;
+
+        try {
+          loc = await createLocation(cleanLoc as any);
+          console.log('[Collab] Firestore create location OK, id:', loc.id);
+        } catch (err) {
+          console.error(
+            '[Collab] Firestore create location FAILED – local only',
+            err,
+          );
+          loc = {
+            id: crypto.randomUUID(),
+            ...(locBaseWithoutId as any),
+          } as LocationData;
+        }
+
+        setLocations((prev) => [loc, ...prev]);
+
+        const data: any = {
+          title,
           createdAt: Date.now(),
           postedBy: { id: currentUser.id, name: currentUser.name },
           countryCode,
-          postalCode,
-          locationId: locId,
-          socialLinks,
-        },
-        ...prev,
-      ]);
+          locationId: loc.id,
+        };
+
+        if (description) data.description = description;
+        if (primaryContact) data.contact = primaryContact;
+        if (postalCode) data.postalCode = postalCode;
+        if (finalImage) data.imageUrl = finalImage;
+        if (socialLinks.length) data.socialLinks = socialLinks;
+
+        const created = await createCollab(data);
+        setCollabs((prev) => [created, ...prev]);
+
+        if (mapRef.current?.focusOn) {
+          mapRef.current.focusOn(loc.lng, loc.lat, 10);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to save collaboration', err);
     }
 
-    if (mapRef.current?.focusOn) {
-      mapRef.current.focusOn(lng, lat, 10);
-    }
-
-    setCollabFormOpen(false);
     setEditingCollab(null);
+    setCollabFormOpen(false);
     cbImgClear();
   }
 
@@ -1383,6 +2587,25 @@ function PageInner() {
 
   const sortPosts = (a: DemoPost, b: DemoPost) => b.createdAt - a.createdAt;
 
+  const sortCreatorPosts = (a: CreatorPost, b: CreatorPost) =>
+    b.createdAt - a.createdAt;
+
+  const creatorPostsByLocation = useMemo(() => {
+    const map: Record<string, CreatorPost[]> = {};
+
+    for (const cp of creatorPosts) {
+      if (!cp.locationId) continue;
+      if (!map[cp.locationId]) map[cp.locationId] = [];
+      map[cp.locationId].push(cp);
+    }
+
+    Object.values(map).forEach((arr) =>
+      arr.sort((a, b) => b.createdAt - a.createdAt),
+    );
+
+    return map;
+  }, [creatorPosts]);
+
   const locationsByStars = useMemo(() => {
     const haunted = locations.filter((l) => l.type === 'HAUNTING');
 
@@ -1402,37 +2625,99 @@ function PageInner() {
     });
   }, [locations, locationStars, country]);
 
+  // these are now always for the *current user* (hub is self-only)
   const userEventsForSelected = useMemo(
-    () =>
-      selectedUserId
-        ? events.filter((e) => e.postedBy?.id === selectedUserId)
-        : [],
-    [events, selectedUserId],
+    () => events.filter((e) => e.postedBy?.id === currentUser.id),
+    [events, currentUser.id],
   );
 
   const userMarketForSelected = useMemo(
-    () =>
-      selectedUserId
-        ? market.filter((m) => m.postedBy?.id === selectedUserId)
-        : [],
-    [market, selectedUserId],
+    () => market.filter((m) => m.postedBy?.id === currentUser.id),
+    [market, currentUser.id],
   );
 
   const userCollabsForSelected = useMemo(
-    () =>
-      selectedUserId
-        ? collabs.filter((c) => c.postedBy?.id === selectedUserId)
-        : [],
-    [collabs, selectedUserId],
+    () => collabs.filter((c) => c.postedBy?.id === currentUser.id),
+    [collabs, currentUser.id],
   );
 
   const postsForSelectedUser = useMemo(
-    () =>
-      selectedUserId
-        ? posts.filter((p) => p.authorId === selectedUserId).sort(sortPosts)
-        : [],
-    [posts, selectedUserId],
+    () => posts.filter((p) => p.authorId === currentUser.id).sort(sortPosts),
+    [posts, currentUser.id],
   );
+
+  const userCreatorsForSelected = useMemo(
+    () =>
+      creatorPosts
+        .filter((p) => p.postedBy.id === currentUser.id)
+        .sort(sortCreatorPosts),
+    [creatorPosts, currentUser.id],
+  );
+
+  /* ------------------------------------------------------------------------ */
+  /*  CREATOR POSTS HELPERS                                                   */
+  /* ------------------------------------------------------------------------ */
+
+  async function createCreatorPost(input: {
+    title: string;
+    description?: string;
+    youtubeUrl: string;
+    locationId: string;
+  }) {
+    const loc = locations.find((l) => l.id === input.locationId);
+    const locationText = loc?.title ?? 'Unknown location';
+
+    const postedBy: any = {
+      id: currentUser.id,
+      name: currentUser.name,
+    };
+    if (currentUser.avatarUrl) {
+      postedBy.avatarUrl = currentUser.avatarUrl;
+    }
+
+    const data: any = {
+      title: input.title,
+      youtubeUrl: input.youtubeUrl,
+      locationId: input.locationId,
+      locationText,
+      createdAt: Date.now(),
+      postedBy,
+    };
+
+    if (input.description) {
+      data.description = input.description;
+    }
+
+    try {
+      const saved = await createCreatorPostDoc(data);
+      setCreatorPosts((prev) => [saved, ...prev]);
+    } catch (err) {
+      console.error('Error creating creator post:', err);
+    }
+  }
+
+  async function handleAddCreator(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+
+    const title = String(fd.get('title') || '').trim();
+    const description =
+      String(fd.get('desc') || '').trim() || undefined;
+    const youtubeUrl = String(fd.get('youtubeUrl') || '').trim();
+    const locationId = String(fd.get('locationId') || '').trim();
+
+    if (!title || !youtubeUrl || !locationId) return;
+
+    await createCreatorPost({
+      title,
+      description,
+      youtubeUrl,
+      locationId,
+    });
+
+    setEditingCreator(null);
+    setCreatorFormOpen(false);
+  }
 
   /* ======================================================================== */
   /*  RENDER                                                                  */
@@ -1444,15 +2729,16 @@ function PageInner() {
       <ParaverseHeader
         tab={tab}
         onSelectTab={handleSelectTab}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
         currentUser={currentUser}
         unreadNotifications={unreadNotificationCount}
         unreadMessages={unreadDmCount}
         onOpenMessagesHub={() => {
-          openUser(currentUser.id);
+          setProfileHubOpen(true);
           setProfileFilter('messages');
         }}
+        onLogoClick={handleLogoClick}
+        onLogin={handleLoginWithGoogle}
+        onLogout={handleLogout}
       />
 
       {/* MAP */}
@@ -1468,6 +2754,7 @@ function PageInner() {
         setDrawerKind={setDrawerKind}
         locationReviews={locationReviews}
         giveLocationStar={giveLocationStar}
+        locationStars={locationStars}
         followedLocations={followedLocations}
         toggleFollowLocation={toggleFollowLocation}
         canEditComment={canEditComment}
@@ -1482,21 +2769,30 @@ function PageInner() {
         currentUser={currentUser}
         userStars={userStars}
         giveUserStar={giveUserStar}
+        followedUsers={followedUsers}
         toggleFollowUser={toggleFollowUser}
         setUsersById={setUsersById}
         setCurrentUser={setCurrentUser}
         setDrawerUser={setDrawerUser}
         setUserDrawerOpen={setUserDrawerOpen}
+        creatorPostsByLocation={creatorPostsByLocation}
+        onSaveUserProfile={handleSaveUserProfile}
+        isAdmin={isAdmin}
+        onEditLocation={onEditLocation}
+        onDeleteLocation={onDeleteLocation}
+        onToggleAdminRole={handleToggleAdminRole}
       />
+
+
 
       {/* FEEDS */}
       <section>
         <div className="mx-auto max-w-6xl px-4 py-6">
-          {/* USER PROFILE HUB VIEW */}
-          {selectedUserId && (
+          {/* PROFILE HUB – SELF ONLY */}
+          {profileHubOpen && (
             <div className="mb-6">
               <ProfileHubSection
-                selectedUserId={selectedUserId}
+                selectedUserId={currentUser.id}
                 currentUser={currentUser}
                 usersById={usersById}
                 profileFilter={profileFilter}
@@ -1505,128 +2801,238 @@ function PageInner() {
                 userEventsForSelected={userEventsForSelected}
                 userMarketForSelected={userMarketForSelected}
                 userCollabsForSelected={userCollabsForSelected}
+                userCreatorsForSelected={userCreatorsForSelected}
                 sortedNotifications={sortedNotifications}
                 sortedDmThreads={sortedDmThreads}
                 formatShortDate={formatShortDate}
                 handleNotificationClick={handleNotificationClick}
                 openDM={openDM}
                 openEditProfile={openEditProfile}
+                onOpenPostFromProfile={openPostFromProfile}
+                onOpenEventFromProfile={openEventFromProfile}
+                onOpenMarketFromProfile={openMarketFromProfile}
+                onOpenCollabFromProfile={openCollabFromProfile}
+                onOpenCreatorFromProfile={openCreatorFromProfile}
               />
             </div>
           )}
 
-          {/* HOME (no user selected) */}
-          {!selectedUserId && tab === 'home' && (
-            <HomeSection
-              currentUser={currentUser}
-              feedFilter={feedFilter}
-              setFeedFilter={setFeedFilter}
-              filteredPosts={filteredPosts}
-              editPost={editPost}
-              deletePost={deletePost}
-              canEditPost={canEditPost}
-              comments={comments}
-              openComment={openComment}
-              openEditComment={openEditComment}
-              canEditComment={canEditComment}
-              usersById={usersById}
-              followedUsers={followedUsers}
-              openUser={openUser}
-              sortPosts={sortPosts}
-              setPostFormOpen={setPostFormOpen}
-              onOpenImage={(src) => setLightboxSrc(src)}
-            />
-          )}
+          {/* When profile hub is open, hide all the tab feeds */}
+          {!profileHubOpen && (
+            <>
+              {/* HOME */}
+              {tab === 'home' && (
+                <HomeSection
+                  currentUser={currentUser}
+                  feedFilter={feedFilter}
+                  setFeedFilter={setFeedFilter}
+                  filteredPosts={filteredPosts}
+                  onStartEditPost={startEditPost}
+                  deletePost={deletePost}
+                  canEditPost={canEditPost}
+                  comments={comments}
+                  openComment={openComment}
+                  openEditComment={openEditComment}
+                  onDeleteComment={onDeleteComment}
+                  canEditComment={canEditComment}
+                  usersById={usersById}
+                  followedUsers={followedUsers}
+                  openUser={openUser}
+                  sortPosts={sortPosts}
+                  setPostFormOpen={setPostFormOpen}
+                  onOpenImage={(src) => setLightboxSrc(src)}
+                />
+              )}
 
-          {/* LOCATIONS */}
-    {!selectedUserId && tab === 'locations' && (
-  <LocationsSection
-    country={country}
-    countries={countries}
-    locationsByStars={locationsByStars}
-    locationStars={locationStars}
-    comments={comments}
-    usersById={usersById}
-    giveLocationStar={giveLocationStar}
-    openAddLocation={openAddLocation}
-    openFromPin={openFromPin}
-    openComment={openComment}
-    openEditComment={openEditComment}
-    openUser={openUser}
-    formatShortDate={formatShortDate}
-    currentUserId={currentUser.id}
-    // NEW: "View on map" should only move map, no drawer
-    onViewOnMap={(locId) => focusLocationById(locId)}
-    onEditLocation={onEditLocation}
-    onDeleteLocation={onDeleteLocation}
-    onMessageUser={onMessageLocationOwner}
-  />
-)}
+              {/* LOCATIONS */}
+              {tab === 'locations' && (
+                <LocationsSection
+                  country={country}
+                  countries={countries}
+                  locationsByStars={locationsByStars}
+                  locationStars={locationStars}
+                  comments={comments}
+                  usersById={usersById}
+                  giveLocationStar={giveLocationStar}
+                  openFromPin={openFromPin}
+                  openComment={openComment}
+                  openEditComment={openEditComment}
+                  openUser={openUser}
+                  openAddLocation={openAddLocation}
+                  formatShortDate={formatShortDate}
+                  currentUserId={currentUser.id}
+                  isAdmin={isAdmin}
+                  onViewOnMap={(locId) => focusLocationById(locId)}
+                  onEditLocation={onEditLocation}
+                  onDeleteLocation={onDeleteLocation}
+                  onMessageUser={onMessageLocationOwner}
+                />
+              )}
 
+              {/* EVENTS */}
+              {tab === 'events' && (
+                <EventsSection
+                  country={country}
+                  events={events}
+                  currentUserId={currentUser.id}
+                  isAdmin={isAdmin}
+                  onAddEvent={() => {
+                    setEditingEvent(null);
+                    setEventFormOpen(true);
+                  }}
+                  onEditEvent={(id) => {
+                    const ev = events.find((e) => e.id === id) || null;
+                    if (!ev) return;
+                    setEditingEvent(ev);
+                    setEventFormOpen(true);
+                  }}
+                  onMessageUser={openDM}
+                  onOpenLocation={(locId) => focusLocationById(locId)}
+                  onUpdateEvent={updateEvent}
+                  onDeleteEvent={deleteEvent}
+                  onOpenImage={(src) => setLightboxSrc(src)}
+                  onOpenUser={openUser}
+                />
+              )}
 
-          {/* EVENTS */}
-          {tab === 'events' && (
-            <EventsSection
-              country={country}
-              events={events}
-              currentUserId={currentUser.id}
-              setEventFormOpen={setEventFormOpen}
-              onMessageUser={openDM}
-              onOpenLocation={(locId) => focusLocationById(locId)}
-              onUpdateEvent={updateEvent}
-              onDeleteEvent={deleteEvent}
-              onOpenImage={(src) => setLightboxSrc(src)}
-              onOpenUser={openUser}
-            />
-          )}
+              {/* MARKETPLACE */}
+              {tab === 'marketplace' && (
+                <MarketplaceSection
+                  country={country}
+                  items={market}
+                  marketFilter={marketFilter}
+                  setMarketFilter={setMarketFilter}
+                  currentUserId={currentUser.id}
+                  isAdmin={isAdmin}
+                  onOpenDM={openDM}
+                  onAddListing={() => {
+                    setEditingListing(null);
+                    setListingFormOpen(true);
+                  }}
+                  onEditListing={startEditListing}
+                  onDeleteListing={async (id) => {
+                    const target = market.find((m) => m.id === id);
+                    if (!target) return;
 
-          {/* MARKETPLACE */}
-          {tab === 'marketplace' && (
-            <MarketplaceSection
-              country={country}
-              items={market}
-              marketFilter={marketFilter}
-              setMarketFilter={setMarketFilter}
-              currentUserId={currentUser.id}
-              onOpenDM={openDM}
-              onAddListing={() => {
-                setEditingListing(null);
-                setListingFormOpen(true);
-              }}
-              onEditListing={startEditListing}
-              onDeleteListing={(id) =>
-                setMarket((prev) => prev.filter((m) => m.id !== id))
-              }
-              onOpenImage={(src) => setLightboxSrc(src)}
-              onOpenUser={openUser}
-            />
-          )}
+                    if (!ensureCanManage(target.postedBy?.id)) return;
 
-          {/* COLLABORATION */}
-          {tab === 'collaboration' && (
-            <CollabSection
-              country={country}
-              items={activeCollabs}
-              currentUserId={currentUser.id}
-              onAddCollab={() => {
-                setEditingCollab(null);
-                cbImgClear();
-                setCollabFormOpen(true);
-              }}
-              onOpenDM={openDM}
-              onOpenLocation={(locId) => focusLocationById(locId)}
-              onOpenUser={openUser}
-              onOpenImage={(src) => setLightboxSrc(src)}
-              onEditCollab={(id) => {
-                const found = collabs.find((c) => c.id === id) || null;
-                setEditingCollab(found);
-                cbImgClear();
-                setCollabFormOpen(true);
-              }}
-              onDeleteCollab={(id) => {
-                setCollabs((prev) => prev.filter((c) => c.id !== id));
-              }}
-            />
+                    try {
+                      await deleteMarketplaceDoc(id);
+                      setMarket((prev) =>
+                        prev.filter((m) => m.id !== id),
+                      );
+                    } catch (err) {
+                      console.error(
+                        'Failed to delete marketplace listing',
+                        err,
+                      );
+                    }
+                  }}
+                  onOpenImage={(src) => setLightboxSrc(src)}
+                  onOpenUser={openUser}
+                />
+              )}
+
+              {/* COLLABORATION */}
+              {tab === 'collaboration' && (
+                <CollabSection
+                  country={country}
+                  items={activeCollabs}
+                  currentUserId={currentUser.id}
+                  isAdmin={isAdmin}
+                  onAddCollab={() => {
+                    setEditingCollab(null);
+                    cbImgClear();
+                    setCollabFormOpen(true);
+                  }}
+                  onOpenDM={openDM}
+                  onOpenLocation={(locId) => focusLocationById(locId)}
+                  onOpenUser={openUser}
+                  onOpenImage={(src) => setLightboxSrc(src)}
+                  onEditCollab={(id) => {
+                    const found =
+                      collabs.find((c) => c.id === id) || null;
+                    setEditingCollab(found);
+                    cbImgClear();
+                    setCollabFormOpen(true);
+                  }}
+                  onDeleteCollab={async (id) => {
+                    try {
+                      await deleteCollabDoc(id);
+                      setCollabs((prev) =>
+                        prev.filter((c) => c.id !== id),
+                      );
+                    } catch (err) {
+                      console.error(
+                        'Failed to delete collaboration',
+                        err,
+                      );
+                    }
+                  }}
+                />
+              )}
+
+              {/* CREATORS HUB */}
+              {tab === 'creators' && (
+                <CreatorsSection
+                  currentUser={currentUser}
+                  posts={creatorPosts}
+                  sortPosts={sortCreatorPosts}
+                  onOpenUser={openUser}
+                  onOpenLocation={(locId) => focusLocationById(locId)}
+                  onOpenCreateForm={() => {
+                    setEditingCreator(null);
+                    setCreatorFormOpen(true);
+                  }}
+                  onEditPost={(post) => {
+                    setEditingCreator(post);
+                    setCreatorFormOpen(true);
+                  }}
+                  onDeletePost={async (id) => {
+                    setCreatorPosts((prev) =>
+                      prev.filter((p) => p.id !== id),
+                    );
+
+                    try {
+                      await deleteCreatorPostDoc(id);
+                      console.log(
+                        '[Creators] Deleted from Firestore:',
+                        id,
+                      );
+                    } catch (err) {
+                      console.error(
+                        '[Creators] Firestore delete failed',
+                        err,
+                      );
+                    }
+                  }}
+                  canEditPost={(p) =>
+                    p.postedBy.id === currentUser.id || isAdmin
+                  }
+                  onReportPost={(post) => {
+                    setNotifications((prev) => [
+                      {
+                        id: crypto.randomUUID(),
+                        kind: 'report_video' as any,
+                        createdAt: new Date().toISOString(),
+                        read: false,
+                        actor: {
+                          id: currentUser.id,
+                          name: currentUser.name,
+                        },
+                        text: `reported a creator video: "${post.title}"`,
+                        target: { type: 'creators', id: post.id },
+                      },
+                      ...prev,
+                    ]);
+
+                    window.alert(
+                      'Thanks. Your report has been sent to Paraverse Admin.',
+                    );
+                  }}
+                />
+              )}
+            </>
           )}
         </div>
       </section>
@@ -1634,14 +3040,43 @@ function PageInner() {
       {/* ======================= MODALS ======================= */}
 
       {/* POST MODAL */}
-      <Modal open={postFormOpen} onClose={() => setPostFormOpen(false)}>
+      <Modal
+        open={postFormOpen}
+        onClose={() => {
+          setPostFormOpen(false);
+          setEditingPost(null);
+          postImgClear();
+          setPostTagUsers([]);
+          setSelectedLocId('');
+          setLocQuery('');
+        }}
+      >
         <PostForm
+          mode={editingPost ? 'edit' : 'create'}
+          initialPost={
+            editingPost
+              ? {
+                  id: editingPost.id,
+                  title: editingPost.title,
+                  desc: editingPost.desc,
+                  linkUrl: (editingPost as any).linkUrl || '',
+                  linkKind: (editingPost as any).linkKind,
+                  locationId: editingPost.locationId,
+                  tagUserIds: editingPost.tagUserIds ?? [],
+                }
+              : undefined
+          }
           handleAddPost={handleAddPost}
           postImg={postImg}
           postImgChange={postImgChange}
           postImgClear={postImgClear}
           postTagUsers={postTagUsers}
           setPostTagUsers={setPostTagUsers}
+          taggableUsers={
+            followedUsers
+              .map((id) => usersById[id])
+              .filter((u) => !!u) as { id: string; name: string }[]
+          }
           selectedLocId={selectedLocId}
           setSelectedLocId={setSelectedLocId}
           locQuery={locQuery}
@@ -1691,14 +3126,39 @@ function PageInner() {
       </Modal>
 
       {/* EVENT MODAL */}
-      <Modal open={eventFormOpen} onClose={() => setEventFormOpen(false)}>
+      <Modal
+        open={eventFormOpen}
+        onClose={() => {
+          setEventFormOpen(false);
+          setEditingEvent(null);
+          evImgClear();
+        }}
+      >
         <EventForm
           handleAddEvent={handleAddEvent}
           evImg={evImg}
           evImgChange={evImgChange}
           country={country}
           countries={countries}
-          onCancel={() => setEventFormOpen(false)}
+          onCancel={() => {
+            setEventFormOpen(false);
+            setEditingEvent(null);
+            evImgClear();
+          }}
+          mode={editingEvent ? 'edit' : 'create'}
+          initialEvent={
+            editingEvent
+              ? {
+                  id: editingEvent.id,
+                  title: editingEvent.title,
+                  description: editingEvent.description,
+                  countryCode: editingEvent.countryCode,
+                  postalCode: editingEvent.postalCode,
+                  socialLinks: (editingEvent as any).socialLinks ?? [],
+                  imageUrl: editingEvent.imageUrl,
+                }
+              : undefined
+          }
         />
       </Modal>
 
@@ -1762,6 +3222,26 @@ function PageInner() {
         />
       </Modal>
 
+      {/* CREATOR MODAL */}
+      <Modal
+        open={creatorFormOpen}
+        onClose={() => {
+          setCreatorFormOpen(false);
+          setEditingCreator(null);
+        }}
+      >
+        <CreatorForm
+          mode={editingCreator ? 'edit' : 'create'}
+          initialPost={editingCreator ?? undefined}
+          handleAddCreator={handleAddCreator}
+          locationsForSelect={creatorLocationOptions}
+          onCancel={() => {
+            setCreatorFormOpen(false);
+            setEditingCreator(null);
+          }}
+        />
+      </Modal>
+
       {/* COMMENT MODAL */}
       <Modal open={commentOpen} onClose={resetCommentState}>
         <CommentForm
@@ -1806,7 +3286,6 @@ function PageInner() {
               >
                 ×
               </button>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={lightboxSrc}
                 alt="Full view"
@@ -1819,4 +3298,3 @@ function PageInner() {
     </main>
   );
 }
-

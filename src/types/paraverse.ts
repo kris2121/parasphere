@@ -65,14 +65,17 @@ export type CollabItem = {
 
 export type Comment = {
   id: string;
+  key: string;                 // e.g. "post:123", "loc:456"
   text: string;
   authorId: string;
   authorName: string;
   createdAt: number;
+  updatedAt: number;
   imageUrl?: string;
   parentId?: string | null;
   tagUserIds?: string[];
 };
+
 
 /* ======================= MESSAGES & NOTIFICATIONS TYPES ==================== */
 

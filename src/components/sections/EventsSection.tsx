@@ -1,78 +1,91 @@
 'use client';
 
 import React from 'react';
-import EventsFeed, { EventsFeedEvent } from '@/components/feed/EventsFeed';
-import { CountrySelect, SectionDisclaimer } from '@/components/ParaverseScope';
+import type { EventItem } from '@/types/paraverse';
+import EventsFeed from '@/components/feed/EventsFeed';
+import {
+  CountrySelect,
+  SectionDisclaimer,
+} from '@/components/ParaverseScope';
 
-type EventsSectionProps = {
-  country: string;
-  events: EventsFeedEvent[];
+type Props = {
+  country: string | null;
+  events: EventItem[];
   currentUserId: string;
 
-  setEventFormOpen: (open: boolean) => void;
+  // NEW: admin flag so admin can edit/delete any event
+  isAdmin: boolean;
+
+  onAddEvent: () => void;
+  onEditEvent: (id: string) => void;
   onMessageUser: (userId: string) => void;
-  onOpenLocation: (locId: string) => void;
-  onUpdateEvent: (id: string, patch: Partial<EventsFeedEvent>) => void;
+  onOpenLocation: (locationId: string) => void;
+  onUpdateEvent: (id: string, patch: Partial<EventItem>) => void; // not used here but kept
   onDeleteEvent: (id: string) => void;
   onOpenImage: (src: string) => void;
-
-  // NEW: open the poster’s profile
-  onOpenUser: (userId: string) => void;
+  onOpenUser: (id: string) => void;
 };
 
 export default function EventsSection({
   country,
   events,
   currentUserId,
-  setEventFormOpen,
+  isAdmin,
+  onAddEvent,
+  onEditEvent,
   onMessageUser,
   onOpenLocation,
   onUpdateEvent,
   onDeleteEvent,
   onOpenImage,
   onOpenUser,
-}: EventsSectionProps) {
+}: Props) {
   return (
-    <>
-      <h1 className="mb-4 text-2xl font-semibold text-purple-300">
+    <div className="mb-6">
+      <h1 className="text-2xl font-semibold text-purple-300">
         Events
       </h1>
 
-      <SectionDisclaimer>
-        Events are community-posted. Always confirm details, pricing and access
-        directly with the host before travelling.
-      </SectionDisclaimer>
+      {/* Behaviour / rules disclaimer */}
+      <div className="mt-3">
+        <SectionDisclaimer>
+          Events are community-submitted. Always confirm details with
+          the organiser directly and investigate safely.
+        </SectionDisclaimer>
+      </div>
 
-      <div className="mb-4">
+      {/* Country scope pill */}
+      <div className="mb-3 mt-2">
         <CountrySelect />
       </div>
 
-      <div className="mb-4">
+      {/* Add Event button */}
+      <div className="mt-1">
         <button
-          onClick={() => setEventFormOpen(true)}
-          className="rounded-md border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-sm text-purple-200"
+          onClick={onAddEvent}
+          className="rounded-md border border-purple-500 bg-purple-500/10 px-3 py-1.5 text-sm font-medium text-purple-300 hover:bg-purple-500/20"
         >
-          + Add Event
+          + Add event
         </button>
       </div>
 
+      {/* Feed list */}
       <EventsFeed
-        country={country}
         events={events}
         currentUserId={currentUserId}
-        onMessageUser={onMessageUser}
-        onOpenLocation={onOpenLocation}
-        onEditEvent={(id) => {
-          // hook for real edit wiring later
-          onUpdateEvent(id, {});
-          setEventFormOpen(true);
-        }}
+        isAdmin={isAdmin}
+        onEditEvent={onEditEvent}
         onDeleteEvent={onDeleteEvent}
+        onOpenLocation={onOpenLocation}
         onOpenImage={onOpenImage}
         onOpenUser={onOpenUser}
+        onMessageUser={onMessageUser}
       />
-    </>
+    </div>
   );
 }
+
+
+
 
 

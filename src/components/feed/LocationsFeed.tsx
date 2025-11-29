@@ -1,22 +1,18 @@
 'use client';
 
 import React from 'react';
-import { Mail, Edit2, Trash2 } from 'lucide-react';
+import { Mail, Edit2, Trash2, ExternalLink } from 'lucide-react';
 
 export type LocationFeedItem = {
   id: string;
   title: string;
   summary?: string;
   imageUrl?: string;
-  address?: string;
-  priceInfo?: string;
   website?: string;
   socialLinks?: Array<{ platform: string; url: string }>;
   verifiedByOwner?: boolean;
   postedBy?: { id: string; name: string };
   createdAt?: number;
-  countryCode?: string;
-  postalCode?: string;
   stars: number;
   reviewCount: number;
 };
@@ -25,12 +21,11 @@ type Props = {
   items: LocationFeedItem[];
   currentUserId: string;
 
-  // CARD CLICK → open drawer for that location
+  // NEW: admin flag so admins can edit/delete any location
+  isAdmin: boolean;
+
   onOpenLocation: (locId: string) => void;
-
-  // "View on map" → just focus map
   onOpenMap: (locId: string) => void;
-
   onOpenUser: (userId: string) => void;
 
   onAddReview: (locId: string) => void;
@@ -38,13 +33,28 @@ type Props = {
   onDeleteLocation: (locId: string) => void;
 
   onMessageUser: (userId: string) => void;
-
   formatShortDate: (ms: number) => string;
 };
+
+/** Decide label for the main link pill */
+function getPrimaryLabel(url: string, platform?: string) {
+  const p = platform?.toLowerCase() ?? '';
+  const u = url.toLowerCase();
+
+  if (p === 'youtube' || u.includes('youtube.com') || u.includes('youtu.be')) {
+    return 'YouTube';
+  }
+  if (p === 'tiktok' || u.includes('tiktok.com')) return 'TikTok';
+  if (p === 'instagram' || u.includes('instagram.com')) return 'Instagram';
+  if (p === 'facebook' || u.includes('facebook.com')) return 'Facebook';
+
+  return platform && platform.toLowerCase() !== 'link' ? platform : 'Link';
+}
 
 export default function LocationsFeed({
   items,
   currentUserId,
+  isAdmin,
   onOpenLocation,
   onOpenMap,
   onOpenUser,
@@ -59,19 +69,35 @@ export default function LocationsFeed({
   );
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {sorted.map((loc) => {
         const isOwner = loc.postedBy?.id === currentUserId;
+        const canManage = isOwner || isAdmin;
+
+        const social = loc.socialLinks ?? [];
+
+        // Primary link:
+        // 1) first social link if present
+        // 2) otherwise fall back to legacy `website` field
+        const primarySocial = social[0];
+        const primaryUrl = primarySocial?.url || loc.website || '';
+        const primaryLabel = primaryUrl
+          ? getPrimaryLabel(primaryUrl, primarySocial?.platform)
+          : null;
+
+        // Extra socials (skip the first one – it’s used as primary)
+        const extraSocials =
+          primarySocial && social.length > 1 ? social.slice(1) : social.slice(1);
 
         return (
-          <div
+          <article
             key={loc.id}
             onClick={() => onOpenLocation(loc.id)}
-            className="flex cursor-pointer gap-3 rounded-lg border border-white/30 bg-neutral-900 p-3 text-sm hover:border-white/60 hover:bg-neutral-900/80"
+            className="flex cursor-pointer gap-4 rounded-lg border border-neutral-700/60 bg-neutral-900 p-4 text-sm hover:border-neutral-400/80"
           >
-            {/* LEFT: Image (still clickable, but handled by card onClick now) */}
+            {/* LEFT — IMAGE */}
             {loc.imageUrl && (
-              <div className="h-20 w-28 shrink-0 overflow-hidden rounded-md bg-neutral-950 md:h-24 md:w-32">
+              <div className="h-24 w-32 shrink-0 overflow-hidden rounded-md bg-neutral-950">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={loc.imageUrl}
@@ -81,50 +107,41 @@ export default function LocationsFeed({
               </div>
             )}
 
-            {/* MAIN CONTENT */}
-            <div className="flex flex-1 flex-col gap-1">
+            {/* RIGHT — MAIN CONTENT */}
+            <div className="flex flex-1 flex-col gap-2">
               {/* TITLE + OWNER CONTROLS */}
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-sm font-semibold text-white">
+              <div className="flex items-start justify-between">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-semibold text-white">
                       {loc.title}
                     </h2>
 
                     {loc.verifiedByOwner && (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/70 bg-emerald-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-200">
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/60 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
                         <span className="h-2 w-2 rounded-full bg-emerald-300" />
                         Verified
                       </span>
                     )}
                   </div>
 
-                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-neutral-400">
-                    {loc.countryCode && (
-                      <span className="rounded-full bg-neutral-900 px-2 py-0.5">
-                        {loc.countryCode}
-                        {loc.postalCode && ` • ${loc.postalCode}`}
-                      </span>
-                    )}
-
-                    {loc.createdAt && (
-                      <span className="text-neutral-500">
-                        {formatShortDate(loc.createdAt)}
-                      </span>
-                    )}
-                  </div>
+                  {loc.createdAt && (
+                    <p className="text-[11px] text-neutral-400">
+                      Added {formatShortDate(loc.createdAt)}
+                    </p>
+                  )}
                 </div>
 
-                {/* EDIT / DELETE */}
-                {isOwner && (
-                  <div className="flex gap-1">
+                {/* EDIT / DELETE – icon + label like other cards */}
+                {canManage && (
+                  <div className="flex gap-2 text-xs">
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         onEditLocation(loc.id);
                       }}
-                      className="inline-flex items-center gap-1 rounded-full border border-white/50 bg-white/10 px-2 py-0.5 text-[11px] text-white hover:bg-white/20"
+                      className="inline-flex items-center gap-1 rounded-full border border-cyan-500/70 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-100 hover:bg-cyan-500/20"
                     >
                       <Edit2 size={12} />
                       Edit
@@ -134,15 +151,11 @@ export default function LocationsFeed({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (
-                          window.confirm(
-                            'Delete this location? This cannot be undone.',
-                          )
-                        ) {
+                        if (window.confirm('Delete this location?')) {
                           onDeleteLocation(loc.id);
                         }
                       }}
-                      className="inline-flex items-center gap-1 rounded-full border border-red-500/70 bg-red-500/10 px-2 py-0.5 text-[11px] text-red-200 hover:bg-red-500/20"
+                      className="inline-flex items-center gap-1 rounded-full border border-red-500/70 bg-red-500/10 px-2.5 py-1 text-[11px] text-red-200 hover:bg-red-500/20"
                     >
                       <Trash2 size={12} />
                       Delete
@@ -151,44 +164,40 @@ export default function LocationsFeed({
                 )}
               </div>
 
-              {/* SUMMARY TEXT */}
+              {/* SUMMARY */}
               {loc.summary && (
-                <p className="mt-1 text-xs text-neutral-300 whitespace-pre-line">
+                <p className="whitespace-pre-line text-xs text-neutral-300">
                   {loc.summary}
                 </p>
               )}
 
-              {/* CONTACT ROW */}
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-neutral-300">
-                {loc.address && (
-                  <span className="truncate">
-                    <span className="opacity-70">Contact:</span> {loc.address}
-                  </span>
-                )}
-                {loc.priceInfo && (
-                  <span>
-                    <span className="opacity-70">Price:</span> {loc.priceInfo}
-                  </span>
-                )}
-                {loc.website && (
-                  <span className="truncate">
-                    <span className="opacity-70">Site:</span> {loc.website}
-                  </span>
-                )}
-              </div>
+              {/* PRIMARY LINK – single accent pill (YouTube / Link / etc) */}
+              {primaryUrl && primaryLabel && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(primaryUrl, '_blank');
+                  }}
+                  className="inline-flex w-fit items-center gap-1 rounded-full border border-white/30 bg-white/10 px-3 py-1 text-[11px] text-white hover:bg-white/20"
+                >
+                  <ExternalLink size={12} />
+                  {primaryLabel}
+                </button>
+              )}
 
-              {/* SOCIAL LINKS */}
-              {loc.socialLinks && loc.socialLinks.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  {loc.socialLinks.map((s, idx) => (
+              {/* EXTRA SOCIAL LINKS (secondary pills) */}
+              {extraSocials.length > 0 && (
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {extraSocials.map((s, i) => (
                     <button
-                      key={idx}
+                      key={`${s.platform}-${i}`}
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         window.open(s.url, '_blank');
                       }}
-                      className="rounded-full border border-white/50 bg-white/10 px-3 py-1 text-[11px] text-white hover:bg-white/20"
+                      className="rounded-full border border-white/40 bg-white/10 px-3 py-1 text-[11px] text-white hover:bg-white/20"
                     >
                       {s.platform}
                     </button>
@@ -196,13 +205,13 @@ export default function LocationsFeed({
                 </div>
               )}
 
-              {/* FOOTER — like Events */}
-              <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-neutral-500">
-                {/* Posted by + Stars + Reviews */}
-                <span>
+              {/* FOOTER — posted by + stars + reviews + buttons */}
+              <div className="mt-1 flex items-center justify-between text-[11px] text-neutral-400">
+                {/* POSTED BY + STARS */}
+                <div className="flex flex-wrap items-center gap-1">
                   {loc.postedBy && (
                     <>
-                      Posted by{' '}
+                      <span>Posted by</span>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -212,18 +221,19 @@ export default function LocationsFeed({
                         className="font-medium text-white hover:underline"
                       >
                         {loc.postedBy!.name}
-                      </button>{' '}
-                      •{' '}
+                      </button>
+                      <span>•</span>
                     </>
                   )}
-                  ★ {loc.stars}{' '}
-                  {loc.reviewCount === 1
-                    ? '• 1 review'
-                    : `• ${loc.reviewCount} reviews`}
-                </span>
+                  <span>
+                    ★ {loc.stars} • {loc.reviewCount}{' '}
+                    {loc.reviewCount === 1 ? 'review' : 'reviews'}
+                  </span>
+                </div>
 
-                {/* BUTTONS RIGHT */}
+                {/* BUTTONS */}
                 <div className="flex flex-wrap gap-2">
+                  {/* VIEW ON MAP */}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -235,6 +245,7 @@ export default function LocationsFeed({
                     View on map
                   </button>
 
+                  {/* ADD REVIEW */}
                   <button
                     type="button"
                     onClick={(e) => {
@@ -246,29 +257,33 @@ export default function LocationsFeed({
                     + Add review
                   </button>
 
-                  {loc.postedBy &&
-                    loc.postedBy.id !== currentUserId && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onMessageUser(loc.postedBy!.id);
-                        }}
-                        className="inline-flex items-center gap-1 rounded-full border border-neutral-500 bg-neutral-800 px-3 py-1 text-[11px] text-neutral-100 hover:bg-neutral-700"
-                      >
-                        <Mail size={12} />
-                        Message owner
-                      </button>
-                    )}
+                  {/* MESSAGE OWNER */}
+                  {loc.postedBy && loc.postedBy.id !== currentUserId && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onMessageUser(loc.postedBy!.id);
+                      }}
+                      className="inline-flex items-center gap-1 rounded-full border border-neutral-500 bg-neutral-800 px-3 py-1 text-[11px] text-neutral-100 hover:bg-neutral-700"
+                    >
+                      <Mail size={12} />
+                      Message owner
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
-          </div>
+          </article>
         );
       })}
     </div>
   );
 }
+
+
+
+
 
 
 

@@ -9,6 +9,9 @@ type CollabSectionProps = {
   items: any[]; // keep loose here
   currentUserId: string;
 
+  // NEW: admin flag so admins can edit/delete any collab
+  isAdmin: boolean;
+
   onOpenDM: (userId: string) => void;
   onAddCollab: () => void;
   onOpenLocation: (locId: string) => void;
@@ -23,6 +26,7 @@ export default function CollabSection({
   country,
   items,
   currentUserId,
+  isAdmin,
   onAddCollab,
   onOpenDM,
   onOpenLocation,
@@ -59,6 +63,7 @@ export default function CollabSection({
         country={country}
         items={items}
         currentUserId={currentUserId}
+        isAdmin={isAdmin}
         onMessageUser={onOpenDM}
         onOpenLocation={onOpenLocation}
         onOpenUser={onOpenUser}
@@ -69,3 +74,4 @@ export default function CollabSection({
     </>
   );
 }
+
