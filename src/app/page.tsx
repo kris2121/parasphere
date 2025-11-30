@@ -396,8 +396,7 @@ function PageInner() {
 
     const notification: NotificationItem = {
       id: crypto.randomUUID(),
-      // 🔐 make TypeScript happy by casting to NotificationKind
-      kind: kind as NotificationKind,
+      kind: kind as NotificationItem['kind'],
       createdAt: new Date().toISOString(),
       read: false,
       actor: {
@@ -410,6 +409,7 @@ function PageInner() {
         id: targetId,
       },
     };
+
 
     setNotifications((prev) => [notification, ...prev]);
   }
