@@ -2760,20 +2760,20 @@ async function submitComment() {
   return (
     <main className="flex min-h-screen flex-col bg-[#0B0C0E] text-white">
       {/* HEADER */}
-      <ParaverseHeader
-        tab={tab}
-        onSelectTab={handleSelectTab}
-        currentUser={currentUser}
-        unreadNotifications={unreadNotificationCount}
-        unreadMessages={unreadDmCount}
-        onOpenMessagesHub={() => {
-          setProfileHubOpen(true);
-          setProfileFilter('messages');
-        }}
-        onLogoClick={handleLogoClick}
-        onLogin={handleLoginWithGoogle}
-        onLogout={handleLogout}
-      />
+<ParaverseHeader
+  tab={tab}
+  onSelectTab={handleSelectTab}
+  currentUser={currentUser}
+  unreadNotifications={unreadNotificationCount}
+  unreadMessages={unreadDmCount}
+  onOpenMessagesHub={() => {
+    setProfileHubOpen(true);
+    setProfileFilter('messages');
+  }}
+  onLogoClick={handleLogoClick}
+  onLogout={handleLogout}
+/>
+
 
       {/* MAP */}
       <MapShell
