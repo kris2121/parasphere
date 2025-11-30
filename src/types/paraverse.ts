@@ -4,7 +4,12 @@ import type { EventsFeedEvent } from '@/components/feed/EventsFeed';
    SOCIAL LINKS
 ============================================================================ */
 
-export type SocialPlatform = 'YouTube' | 'TikTok' | 'Instagram' | 'Facebook' | 'Link';
+export type SocialPlatform =
+  | 'YouTube'
+  | 'TikTok'
+  | 'Instagram'
+  | 'Facebook'
+  | 'Link';
 
 export type SocialLink = {
   platform: SocialPlatform;
@@ -12,7 +17,7 @@ export type SocialLink = {
 };
 
 /* ============================================================================
-   TYPES
+   CORE FEED TYPES
 ============================================================================ */
 
 export type DemoPost = {
@@ -24,7 +29,7 @@ export type DemoPost = {
   imageUrl?: string;
   linkUrl?: string;
 
-  // 👇 NEW: what kind of link it is
+  // What kind of external link this post has (for icons / routing)
   linkKind?: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'other';
 
   authorId: string;
@@ -40,14 +45,15 @@ export type MarketplaceItem = {
   description: string;
   imageUrl?: string;
 
-  contactInfo?: string; // kept for backwards compatibility
-  webLink?: string;     // single standard link
+  // Legacy / compatibility fields
+  contactInfo?: string;
+  webLink?: string; // single standard link
 
   createdAt: number;
   postedBy: { id: string; name: string };
   countryCode?: string;
   postalCode?: string;
-  // 🔥 socialLinks removed for marketplace – not needed anymore
+  // NOTE: socialLinks removed for marketplace – not needed here
 };
 
 export type EventItem = EventsFeedEvent & {
@@ -74,7 +80,7 @@ export type CollabItem = {
 
 export type Comment = {
   id: string;
-  key: string;                 // e.g. "post:123", "loc:456"
+  key: string; // e.g. "post:123", "loc:456"
   text: string;
   authorId: string;
   authorName: string;
@@ -85,7 +91,9 @@ export type Comment = {
   tagUserIds?: string[];
 };
 
-/* ======================= MESSAGES & NOTIFICATIONS TYPES ==================== */
+/* ============================================================================
+   MESSAGES & NOTIFICATIONS
+============================================================================ */
 
 export type NotificationKind =
   | 'comment_reply'
@@ -94,7 +102,7 @@ export type NotificationKind =
   | 'collab_comment'
   | 'follow'
   | 'dm'
-  // 🔽 extra kinds used in page.tsx
+  // Extra kinds used in page.tsx (reports etc.)
   | 'report_creator'
   | 'report_user'
   | 'report_video';
@@ -105,10 +113,9 @@ export type NotificationTargetType =
   | 'marketplace'
   | 'collab'
   | 'profile'
-  // 🔽 extra targets used in page.tsx
+  // Extra targets used in page.tsx
   | 'creator'
   | 'creators';
-
 
 export type NotificationTarget = {
   type: NotificationTargetType;
@@ -149,4 +156,5 @@ export type DMThread = {
   lastMessageAt: string; // ISO
   messages: DMMessage[];
 };
+
 
