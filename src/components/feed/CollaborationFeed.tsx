@@ -9,6 +9,8 @@ import {
   MapPin,
 } from 'lucide-react';
 
+import AdSlot from '@/components/ads/AdSlot';
+
 export type CollabItem = {
   id: string;
   title: string;
@@ -118,7 +120,13 @@ export default function CollaborationFeed({
 
   return (
     <div className="space-y-3">
-      {sorted.map((c) => {
+      {/* HEADER BANNER FOR COLLABS */}
+      <AdSlot
+        placementKey="collabs-header-banner"
+        className="mb-3"
+      />
+
+      {sorted.map((c, index) => {
         const isOwner = c.postedBy.id === currentUserId;
         const canEdit = isAdmin || isOwner;
 
@@ -128,123 +136,141 @@ export default function CollaborationFeed({
         const linkLabel = getLinkLabel(c.contact);
 
         return (
-          <div
-            key={c.id}
-            className="flex gap-3 rounded-lg border border-emerald-500/60 bg-neutral-900/95 p-3 text-sm"
-          >
-            {/* IMAGE THUMB – same pattern as Marketplace/Events */}
-            {c.imageUrl && (
-              <button
-                type="button"
-                onClick={() => onOpenImage(c.imageUrl!)}
-                className="h-20 w-28 shrink-0 cursor-pointer overflow-hidden rounded-md bg-neutral-950 md:h-24 md:w-32"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={c.imageUrl}
-                  alt={c.title}
-                  className="h-full w-full object-cover"
-                />
-              </button>
-            )}
+          <React.Fragment key={c.id}>
+            <div
+              className="flex gap-3 rounded-lg border border-emerald-500/60 bg-neutral-900/95 p-3 text-sm"
+            >
+              {/* IMAGE THUMB – same pattern as Marketplace/Events */}
+              {c.imageUrl && (
+                <button
+                  type="button"
+                  onClick={() => onOpenImage(c.imageUrl!)}
+                  className="h-20 w-28 shrink-0 cursor-pointer overflow-hidden rounded-md bg-neutral-950 md:h-24 md:w-32"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={c.imageUrl}
+                    alt={c.title}
+                    className="h-full w-full object-cover"
+                  />
+                </button>
+              )}
 
-            {/* MAIN CONTENT */}
-            <div className="flex flex-1 flex-col gap-1">
-              {/* Top row: title + edit/delete */}
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h2 className="text-sm font-semibold text-white">
-                    {c.title}
-                  </h2>
-                  {/* no date/time here – just title */}
+              {/* MAIN CONTENT */}
+              <div className="flex flex-1 flex-col gap-1">
+                {/* Top row: title + edit/delete */}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm font-semibold text-white">
+                      {c.title}
+                    </h2>
+                    {/* no date/time here – just title */}
+                  </div>
+
+                  {canEdit && (
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onEditCollab(c.id)}
+                        className="inline-flex items-center gap-1 rounded-full border border-emerald-400/80 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/20"
+                      >
+                        <Edit2 size={12} />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(c.id)}
+                        className="inline-flex items-center gap-1 rounded-full border border-red-500/70 bg-red-500/10 px-3 py-1 text-[11px] text-red-200 hover:bg-red-500/20"
+                      >
+                        <Trash2 size={12} />
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                {canEdit && (
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => onEditCollab(c.id)}
+                {/* Description */}
+                {c.description && (
+                  <p className="mt-1 whitespace-pre-line text-xs text-neutral-300">
+                    {c.description}
+                  </p>
+                )}
+
+                {/* Contact link – green accent with icon */}
+                {c.contact && (
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    <a
+                      href={c.contact}
+                      target="_blank"
+                      rel="noreferrer"
                       className="inline-flex items-center gap-1 rounded-full border border-emerald-400/80 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/20"
                     >
-                      <Edit2 size={12} />
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(c.id)}
-                      className="inline-flex items-center gap-1 rounded-full border border-red-500/70 bg-red-500/10 px-3 py-1 text-[11px] text-red-200 hover:bg-red-500/20"
-                    >
-                      <Trash2 size={12} />
-                      Delete
-                    </button>
+                      <ExternalLink size={12} />
+                      {linkLabel}
+                    </a>
                   </div>
                 )}
-              </div>
 
-              {/* Description */}
-              {c.description && (
-                <p className="mt-1 whitespace-pre-line text-xs text-neutral-300">
-                  {c.description}
-                </p>
-              )}
-
-              {/* Contact link – green accent with icon */}
-              {c.contact && (
-                <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  <a
-                    href={c.contact}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-full border border-emerald-400/80 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/20"
-                  >
-                    <ExternalLink size={12} />
-                    {linkLabel}
-                  </a>
-                </div>
-              )}
-
-              {/* Footer: posted by + view on map + message */}
-              <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-neutral-500">
-                <span>
-                  Posted by{' '}
-                  <button
-                    type="button"
-                    onClick={() => onOpenUser(c.postedBy.id)}
-                    className="font-medium text-emerald-200 hover:underline"
-                  >
-                    {c.postedBy.name || 'User'}
-                  </button>
-                  {dateLabel && <> • {dateLabel}</>}
-                </span>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {c.locationId && (
+                {/* Footer: posted by + view on map + message */}
+                <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-neutral-500">
+                  <span>
+                    Posted by{' '}
                     <button
                       type="button"
-                      onClick={() => onOpenLocation(c.locationId!)}
-                      className="inline-flex items-center gap-1 rounded-full border border-emerald-400/80 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/20"
+                      onClick={() => onOpenUser(c.postedBy.id)}
+                      className="font-medium text-emerald-200 hover:underline"
                     >
-                      <MapPin size={12} />
-                      View on map
+                      {c.postedBy.name || 'User'}
                     </button>
-                  )}
+                    {dateLabel && <> • {dateLabel}</>}
+                  </span>
 
-                  {!isOwner && (
-                    <button
-                      type="button"
-                      onClick={() => onMessageUser(c.postedBy.id)}
-                      className="inline-flex items-center gap-1 rounded-full border border-neutral-600 bg-neutral-800 px-3 py-1 text-[11px] text-neutral-100 hover:bg-neutral-700"
-                    >
-                      <Mail size={12} />
-                      Message team
-                    </button>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {c.locationId && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenLocation(c.locationId!)}
+                        className="inline-flex items-center gap-1 rounded-full border border-emerald-400/80 bg-emerald-500/10 px-3 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/20"
+                      >
+                        <MapPin size={12} />
+                        View on map
+                      </button>
+                    )}
+
+                    {!isOwner && (
+                      <button
+                        type="button"
+                        onClick={() => onMessageUser(c.postedBy.id)}
+                        className="inline-flex items-center gap-1 rounded-full border border-neutral-600 bg-neutral-800 px-3 py-1 text-[11px] text-neutral-100 hover:bg-neutral-700"
+                      >
+                        <Mail size={12} />
+                        Message team
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+
+            {/* INLINE NATIVE AD AFTER 3rd COLLAB */}
+            {index === 2 && (
+              <AdSlot
+                placementKey="collabs-feed-inline-1"
+                className="mt-2"
+              />
+            )}
+
+            {/* INLINE NATIVE AD AFTER 10th COLLAB */}
+            {index === 9 && (
+              <AdSlot
+                placementKey="collabs-feed-inline-2"
+                className="mt-2"
+              />
+            )}
+          </React.Fragment>
         );
       })}
     </div>
   );
 }
+

@@ -10,6 +10,7 @@ import {
   Ghost,
 } from 'lucide-react';
 import type { UserMini } from '@/components/UserDrawer';
+import AdSlot from '@/components/ads/AdSlot';
 
 /* --------------------------------- Types --------------------------------- */
 
@@ -356,7 +357,7 @@ export default function HomeFeed({
 
   return (
     <div className="space-y-3">
-      {sorted.map((p) => {
+      {sorted.map((p, index) => {
         const key = `post:${p.id}`;
         const postComments = comments[key] ?? [];
 
@@ -396,177 +397,194 @@ export default function HomeFeed({
         const hasTagRow = !!locationLabel || taggedUsers.length > 0;
 
         return (
-          <article
-            key={p.id}
-            className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900/95 p-3 text-sm shadow-sm"
-          >
-            <div className="flex gap-3">
-              {/* Thumbnail column (matches Events layout) */}
-          <button
-  type="button"
-  className="flex h-24 w-32 items-center justify-center overflow-hidden rounded-md border border-neutral-800 bg-black/60 cursor-pointer"
-  onClick={() => {
-    if (p.imageUrl) onOpenImage(p.imageUrl);
-  }}
->
+          <React.Fragment key={p.id}>
+            <article
+              className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900/95 p-3 text-sm shadow-sm"
+            >
+              <div className="flex gap-3">
+                {/* Thumbnail column (matches Events layout) */}
+                <button
+                  type="button"
+                  className="flex h-24 w-32 items-center justify-center overflow-hidden rounded-md border border-neutral-800 bg-black/60 cursor-pointer"
+                  onClick={() => {
+                    if (p.imageUrl) onOpenImage(p.imageUrl);
+                  }}
+                >
+                  {p.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={p.imageUrl}
+                      alt={p.title}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-[11px] text-neutral-500">
+                      No image
+                    </span>
+                  )}
+                </button>
 
-                {p.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={p.imageUrl}
-                    alt={p.title}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span className="text-[11px] text-neutral-500">
-                    No image
-                  </span>
-                )}
-              </button>
+                {/* Main content column */}
+                <div className="flex-1">
+                  {/* Header row: title + edit/delete (like Events) */}
+                  <div className="flex items-start justify-between gap-2">
+                    <h2 className="text-sm font-semibold text-white">
+                      {p.title}
+                    </h2>
 
-              {/* Main content column */}
-              <div className="flex-1">
-                {/* Header row: title + edit/delete (like Events) */}
-                <div className="flex items-start justify-between gap-2">
-                  <h2 className="text-sm font-semibold text-white">
-                    {p.title}
-                  </h2>
+                    {canEditPost(p) && (
+                      <div className="flex items-center gap-2 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => onEditPost(p)}
+                          className="inline-flex items-center gap-1 rounded-full border border-cyan-500/70 bg-cyan-500/10 px-2.5 py-1 text-cyan-100 hover:bg-cyan-500/20"
+                        >
+                          <Edit2 size={12} />
+                          Edit
+                        </button>
 
-                  {canEditPost(p) && (
-                    <div className="flex items-center gap-2 text-[11px]">
-                      <button
-                        type="button"
-                        onClick={() => onEditPost(p)}
-                        className="inline-flex items-center gap-1 rounded-full border border-cyan-500/70 bg-cyan-500/10 px-2.5 py-1 text-cyan-100 hover:bg-cyan-500/20"
-                      >
-                        <Edit2 size={12} />
-                        Edit
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeletePost(p.id)}
+                          className="inline-flex items-center gap-1 rounded-full border border-red-500/70 bg-red-500/10 px-2.5 py-1 text-red-200 hover:bg-red-500/20"
+                        >
+                          <Trash2 size={12} />
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
-                      <button
-                        type="button"
-                        onClick={() => onDeletePost(p.id)}
-                        className="inline-flex items-center gap-1 rounded-full border border-red-500/70 bg-red-500/10 px-2.5 py-1 text-red-200 hover:bg-red-500/20"
-                      >
-                        <Trash2 size={12} />
-                        Delete
-                      </button>
+                  {/* Description */}
+                  {p.desc && (
+                    <p className="mt-1 text-xs leading-relaxed text-neutral-200">
+                      {p.desc}
+                    </p>
+                  )}
+
+                  {/* 🔹 Tag row: location + users */}
+                  {hasTagRow && (
+                    <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
+                      {/* Location tag chip */}
+                      {p.locationId && locationLabel && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onOpenLocationFromTag?.(p.locationId as string)
+                          }
+                          className="inline-flex items-center gap-1 rounded-full bg-cyan-900/40 px-2.5 py-1 text-[11px] font-medium text-cyan-100 hover:bg-cyan-800/70"
+                        >
+                          <Ghost size={11} className="text-cyan-300" />
+                          <span>{locationLabel}</span>
+                        </button>
+                      )}
+
+                      {/* Tagged users */}
+                      {taggedUsers.map((u) => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => onOpenUser(u.id)}
+                          className="inline-flex items-center gap-1 rounded-full bg-neutral-800/70 px-2.5 py-1 text-[11px] text-neutral-100 hover:bg-neutral-700"
+                        >
+                          <span className="text-neutral-400">@</span>
+                          <span className="font-medium">{u.name}</span>
+                        </button>
+                      ))}
                     </div>
                   )}
-                </div>
 
-                {/* Description */}
-                {p.desc && (
-                  <p className="mt-1 text-xs leading-relaxed text-neutral-200">
-                    {p.desc}
-                  </p>
-                )}
-
-                {/* 🔹 Tag row: location + users */}
-                {hasTagRow && (
-                  <div className="mt-2 flex flex-wrap gap-1.5 text-[11px]">
-                    {/* Location tag chip */}
-                    {p.locationId && locationLabel && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onOpenLocationFromTag?.(p.locationId as string)
-                        }
-                        className="inline-flex items-center gap-1 rounded-full bg-cyan-900/40 px-2.5 py-1 text-[11px] font-medium text-cyan-100 hover:bg-cyan-800/70"
+                  {/* Link pill */}
+                  {p.linkUrl && linkLabel && (
+                    <div className="mt-2">
+                      <a
+                        href={p.linkUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-full border border-cyan-500/70 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/20"
                       >
-                        <Ghost size={11} className="text-cyan-300" />
-                        <span>{locationLabel}</span>
-                      </button>
-                    )}
+                        <ExternalLink size={12} />
+                        {linkLabel}
+                      </a>
+                    </div>
+                  )}
 
-                    {/* Tagged users */}
-                    {taggedUsers.map((u) => (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => onOpenUser(u.id)}
-                        className="inline-flex items-center gap-1 rounded-full bg-neutral-800/70 px-2.5 py-1 text-[11px] text-neutral-100 hover:bg-neutral-700"
-                      >
-                        <span className="text-neutral-400">@</span>
-                        <span className="font-medium">{u.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Link pill */}
-                {p.linkUrl && linkLabel && (
-                  <div className="mt-2">
-                    <a
-                      href={p.linkUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 rounded-full border border-cyan-500/70 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/20"
+                  {/* Footer: posted by + date / comments pill */}
+                  <footer className="mt-3 flex items-center justify-between text-[11px] text-neutral-400">
+                    <button
+                      type="button"
+                      onClick={() => onOpenUser(author.id)}
+                      className="text-left hover:text-cyan-200"
                     >
-                      <ExternalLink size={12} />
-                      {linkLabel}
-                    </a>
-                  </div>
-                )}
+                      <span>Posted by </span>
+                      <span className="font-semibold text-white hover:underline">
+                        {author.name}
+                      </span>
+                      <span>{' • '}{formatShortDate(p.createdAt)}</span>
+                    </button>
 
-                {/* Footer: posted by + date / comments pill */}
-                <footer className="mt-3 flex items-center justify-between text-[11px] text-neutral-400">
-                  <button
-                    type="button"
-                    onClick={() => onOpenUser(author.id)}
-                    className="text-left hover:text-cyan-200"
-                  >
-                    <span>Posted by </span>
-                    <span className="font-semibold text-white hover:underline">
-                      {author.name}
-                    </span>
-                    <span>{' • '}{formatShortDate(p.createdAt)}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => onOpenComment(key)}
-                    className="inline-flex items-center gap-1 rounded-full border border-neutral-700 bg-neutral-900 px-2 py-1 text-neutral-300 hover:border-cyan-500 hover:text-cyan-200"
-                  >
-                    <MessageCircle size={13} />
-                    <span>
-                      {totalComments === 0
-                        ? 'Add comment'
-                        : `${totalComments} comment${
-                            totalComments === 1 ? '' : 's'
-                          }`}
-                    </span>
-                  </button>
-                </footer>
+                    <button
+                      type="button"
+                      onClick={() => onOpenComment(key)}
+                      className="inline-flex items-center gap-1 rounded-full border border-neutral-700 bg-neutral-900 px-2 py-1 text-neutral-300 hover:border-cyan-500 hover:text-cyan-200"
+                    >
+                      <MessageCircle size={13} />
+                      <span>
+                        {totalComments === 0
+                          ? 'Add comment'
+                          : `${totalComments} comment${
+                              totalComments === 1 ? '' : 's'
+                            }`}
+                      </span>
+                    </button>
+                  </footer>
+                </div>
               </div>
-            </div>
 
-            {/* Threaded comments under the post */}
-            {roots.length > 0 && (
-              <div className="mt-3 space-y-2 border-t border-neutral-800 pt-2">
-                {roots.map((root) => (
-                  <CommentThread
-                    key={root.id}
-                    comment={root}
-                    replies={repliesByParent[root.id] ?? []}
-                    keyString={key}
-                    onOpenComment={onOpenComment}
-                    onOpenEditComment={onOpenEditComment}
-                    onDeleteComment={onDeleteComment}
-                    canEditComment={canEditComment}
-                    onOpenImage={onOpenImage}
-                    usersById={usersById}
-                    onOpenUser={onOpenUser}
-                  />
-                ))}
-              </div>
+              {/* Threaded comments under the post */}
+              {roots.length > 0 && (
+                <div className="mt-3 space-y-2 border-t border-neutral-800 pt-2">
+                  {roots.map((root) => (
+                    <CommentThread
+                      key={root.id}
+                      comment={root}
+                      replies={repliesByParent[root.id] ?? []}
+                      keyString={key}
+                      onOpenComment={onOpenComment}
+                      onOpenEditComment={onOpenEditComment}
+                      onDeleteComment={onDeleteComment}
+                      canEditComment={canEditComment}
+                      onOpenImage={onOpenImage}
+                      usersById={usersById}
+                      onOpenUser={onOpenUser}
+                    />
+                  ))}
+                </div>
+              )}
+            </article>
+
+            {/* INLINE NATIVE AD AFTER 3rd POST */}
+            {index === 2 && (
+              <AdSlot
+                placementKey="home-feed-inline-1"
+                className="mt-2"
+              />
             )}
-          </article>
+
+            {/* INLINE NATIVE AD AFTER 10th POST */}
+            {index === 9 && (
+              <AdSlot
+                placementKey="home-feed-inline-2"
+                className="mt-2"
+              />
+            )}
+          </React.Fragment>
         );
       })}
     </div>
   );
 }
+
 
 
 

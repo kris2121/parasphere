@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { ExternalLink, Flag } from 'lucide-react';
+import AdSlot from '@/components/ads/AdSlot';
 
 export type CreatorPost = {
   id: string;
@@ -104,119 +105,137 @@ export default function CreatorsFeed({
 
   return (
     <div className="space-y-3">
-      {sorted.map((post) => {
+      {sorted.map((post, index) => {
         const thumb = youtubeThumb(post.youtubeUrl) || undefined;
         const editable = canEditPost ? canEditPost(post) : false;
         const dateLabel = formatShortDate(post.createdAt);
 
         return (
-          <div
-            key={post.id}
-            className="flex gap-3 rounded-lg border border-orange-500/60 bg-neutral-900/95 p-3 text-sm"
-          >
-            {/* IMAGE THUMB – same pattern as Marketplace/Events/Collab */}
-            {thumb && (
-              <a
-                href={post.youtubeUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="h-20 w-28 shrink-0 cursor-pointer overflow-hidden rounded-md bg-neutral-950 md:h-24 md:w-32"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={thumb}
-                  alt={post.title}
-                  className="h-full w-full object-cover"
-                />
-              </a>
-            )}
-
-            {/* MAIN CONTENT */}
-            <div className="flex flex-1 flex-col gap-1">
-              {/* Top row: title + edit/delete */}
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h2 className="text-sm font-semibold text-white">
-                    {post.title}
-                  </h2>
-                </div>
-
-                {editable && (
-                  <div className="flex gap-1">
-                    {onEditPost && (
-                      <button
-                        type="button"
-                        onClick={() => onEditPost(post)}
-                        className="inline-flex items-center gap-1 rounded-full border border-orange-400/80 bg-orange-500/10 px-3 py-1 text-[11px] text-orange-100 hover:bg-orange-500/20"
-                      >
-                        Edit
-                      </button>
-                    )}
-                    {onDeletePost && (
-                      <button
-                        type="button"
-                        onClick={() => onDeletePost(post.id)}
-                        className="inline-flex items-center gap-1 rounded-full border border-red-500/70 bg-red-500/10 px-3 py-1 text-[11px] text-red-200 hover:bg-red-500/20"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Description */}
-              {post.description && (
-                <p className="mt-1 whitespace-pre-line text-xs text-neutral-300">
-                  {post.description}
-                </p>
-              )}
-
-              {/* Watch on YouTube – pill, like collab contact button */}
-              <div className="mt-2 flex flex-wrap gap-2 text-xs">
+          <React.Fragment key={post.id}>
+            <div
+              className="flex gap-3 rounded-lg border border-orange-500/60 bg-neutral-900/95 p-3 text-sm"
+            >
+              {/* IMAGE THUMB – same pattern as Marketplace/Events/Collab */}
+              {thumb && (
                 <a
                   href={post.youtubeUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 rounded-full border border-orange-400/80 bg-orange-500/10 px-3 py-1 text-[11px] text-orange-100 hover:bg-orange-500/20"
+                  className="h-20 w-28 shrink-0 cursor-pointer overflow-hidden rounded-md bg-neutral-950 md:h-24 md:w-32"
                 >
-                  <ExternalLink size={12} />
-                  Watch on YouTube
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={thumb}
+                    alt={post.title}
+                    className="h-full w-full object-cover"
+                  />
                 </a>
-              </div>
+              )}
 
-              {/* Footer: posted by + date + report button */}
-              <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-neutral-500">
-                <span>
-                  Posted by{' '}
-                  <button
-                    type="button"
-                    onClick={() => onOpenUser(post.postedBy.id)}
-                    className="font-medium text-orange-200 hover:underline"
-                  >
-                    {post.postedBy.name || 'User'}
-                  </button>
-                  {dateLabel && <> • {dateLabel}</>}
-                </span>
+              {/* MAIN CONTENT */}
+              <div className="flex flex-1 flex-col gap-1">
+                {/* Top row: title + edit/delete */}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h2 className="text-sm font-semibold text-white">
+                      {post.title}
+                    </h2>
+                  </div>
 
-                {onReportVideo && (
-                  <button
-                    type="button"
-                    onClick={() => onReportVideo(post)}
-                    className="inline-flex items-center gap-1 rounded-full border border-neutral-600 bg-neutral-800 px-3 py-1 text-[11px] text-neutral-100 hover:bg-neutral-700"
-                  >
-                    <Flag size={12} />
-                    Report video
-                  </button>
+                  {editable && (
+                    <div className="flex gap-1">
+                      {onEditPost && (
+                        <button
+                          type="button"
+                          onClick={() => onEditPost(post)}
+                          className="inline-flex items-center gap-1 rounded-full border border-orange-400/80 bg-orange-500/10 px-3 py-1 text-[11px] text-orange-100 hover:bg-orange-500/20"
+                        >
+                          Edit
+                        </button>
+                      )}
+                      {onDeletePost && (
+                        <button
+                          type="button"
+                          onClick={() => onDeletePost(post.id)}
+                          className="inline-flex items-center gap-1 rounded-full border border-red-500/70 bg-red-500/10 px-3 py-1 text-[11px] text-red-200 hover:bg-red-500/20"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Description */}
+                {post.description && (
+                  <p className="mt-1 whitespace-pre-line text-xs text-neutral-300">
+                    {post.description}
+                  </p>
                 )}
+
+                {/* Watch on YouTube – pill, like collab contact button */}
+                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                  <a
+                    href={post.youtubeUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full border border-orange-400/80 bg-orange-500/10 px-3 py-1 text-[11px] text-orange-100 hover:bg-orange-500/20"
+                  >
+                    <ExternalLink size={12} />
+                    Watch on YouTube
+                  </a>
+                </div>
+
+                {/* Footer: posted by + date + report button */}
+                <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-neutral-500">
+                  <span>
+                    Posted by{' '}
+                    <button
+                      type="button"
+                      onClick={() => onOpenUser(post.postedBy.id)}
+                      className="font-medium text-orange-200 hover:underline"
+                    >
+                      {post.postedBy.name || 'User'}
+                    </button>
+                    {dateLabel && <> • {dateLabel}</>}
+                  </span>
+
+                  {onReportVideo && (
+                    <button
+                      type="button"
+                      onClick={() => onReportVideo(post)}
+                      className="inline-flex items-center gap-1 rounded-full border border-neutral-600 bg-neutral-800 px-3 py-1 text-[11px] text-neutral-100 hover:bg-neutral-700"
+                    >
+                      <Flag size={12} />
+                      Report video
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+
+            {/* INLINE NATIVE AD AFTER 3rd CREATOR VIDEO */}
+            {index === 2 && (
+              <AdSlot
+                placementKey="creators-feed-inline-1"
+                className="mt-2"
+              />
+            )}
+
+            {/* INLINE NATIVE AD AFTER 10th CREATOR VIDEO */}
+            {index === 9 && (
+              <AdSlot
+                placementKey="creators-feed-inline-2"
+                className="mt-2"
+              />
+            )}
+          </React.Fragment>
         );
       })}
     </div>
   );
 }
+
 
 
 
