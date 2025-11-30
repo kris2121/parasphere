@@ -80,11 +80,12 @@ import type {
   DMThread,
 } from '@/types/paraverse';
 
-// Local SocialLink type (we no longer import it from paraverse types)
+// Local SocialLink type for feeds & forms
 type SocialLink = {
   platform: 'YouTube' | 'TikTok' | 'Instagram' | 'Facebook' | 'Link';
   url: string;
 };
+
 
 
 import type { TabKey } from '@/components/ParaverseHeader';
