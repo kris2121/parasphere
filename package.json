@@ -2,12 +2,12 @@
   "name": "parasphere",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
+"scripts": {
+  "dev": "next dev --webpack",
+  "build": "next build --webpack",
+  "start": "next start",
+  "lint": "eslint"
+},
   "dependencies": {
     "@vercel/speed-insights": "^1.2.0",
     "firebase": "^12.6.0",
@@ -30,3 +30,4 @@
     "typescript": "5.9.3"
   }
 }
+
