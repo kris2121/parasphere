@@ -3151,7 +3151,7 @@ async function submitComment() {
               : undefined
           }
           handleAddLocation={handleAddLocation}
-          locImg={locImg}
+          locImg={locImg ?? null}
           locImgChange={locImgChange}
           country={country}
           countries={countries}
