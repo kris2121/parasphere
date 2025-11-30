@@ -78,8 +78,14 @@ import type {
   NotificationItem,
   DMMessage,
   DMThread,
-  SocialLink,
 } from '@/types/paraverse';
+
+// Local SocialLink type (we no longer import it from paraverse types)
+type SocialLink = {
+  platform: 'YouTube' | 'TikTok' | 'Instagram' | 'Facebook' | 'Link';
+  url: string;
+};
+
 
 import type { TabKey } from '@/components/ParaverseHeader';
 import type { LocationData, LiveMapHandle } from '@/components/LiveMap';
