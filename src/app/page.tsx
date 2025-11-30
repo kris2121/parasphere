@@ -657,16 +657,17 @@ const mini: UserMini = {
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchEvents() {
-      try {
-        const data = await loadEvents(country);
-        if (!cancelled) {
-          setEvents(data);
-        }
-      } catch (err) {
-        console.error('Error loading events', err);
-      }
+async function fetchEvents() {
+  try {
+    const data = await loadEvents();
+    if (!cancelled) {
+      setEvents(data);
     }
+  } catch (err) {
+    console.error('Failed to load events', err);
+  }
+}
+
 
     fetchEvents();
 
