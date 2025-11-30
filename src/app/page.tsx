@@ -502,7 +502,9 @@ const mini: UserMini = {
 
   const [tab, setTab] = useState<TabKey>('home');
   const [searchQuery, setSearchQuery] = useState('');
-  const mapRef = useRef<LiveMapHandle>(null);
+  const mapRef = useRef<LiveMapHandle | null>(null);
+
+
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerLoc, setDrawerLoc] = useState<LocationData | undefined>(
@@ -2855,28 +2857,30 @@ async function submitComment() {
           {!profileHubOpen && (
             <>
               {/* HOME */}
-              {tab === 'home' && (
-                <HomeSection
-                  currentUser={currentUser}
-                  feedFilter={feedFilter}
-                  setFeedFilter={setFeedFilter}
-                  filteredPosts={filteredPosts}
-                  onStartEditPost={startEditPost}
-                  deletePost={deletePost}
-                  canEditPost={canEditPost}
-                  comments={comments}
-                  openComment={openComment}
-                  openEditComment={openEditComment}
-                  onDeleteComment={onDeleteComment}
-                  canEditComment={canEditComment}
-                  usersById={usersById}
-                  followedUsers={followedUsers}
-                  openUser={openUser}
-                  sortPosts={sortPosts}
-                  setPostFormOpen={setPostFormOpen}
-                  onOpenImage={(src) => setLightboxSrc(src)}
-                />
-              )}
+     {tab === 'home' && (
+  <HomeSection
+    currentUser={currentUser}
+    feedFilter={feedFilter}
+    setFeedFilter={setFeedFilter}
+    filteredPosts={filteredPosts}
+    onStartEditPost={startEditPost}
+    deletePost={deletePost}
+    canEditPost={canEditPost}
+    comments={comments}
+    openComment={openComment}
+    openEditComment={openEditComment}
+    onDeleteComment={onDeleteComment}
+    canEditComment={canEditComment}
+    usersById={usersById}
+    followedUsers={followedUsers}
+    openUser={openUser}
+    sortPosts={sortPosts}
+    setPostFormOpen={setPostFormOpen}
+    onOpenImage={(src) => setLightboxSrc(src)}
+    onOpenLocationFromTag={focusLocationById}
+  />
+)}
+
 
               {/* LOCATIONS */}
               {tab === 'locations' && (
