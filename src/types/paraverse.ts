@@ -94,15 +94,21 @@ export type NotificationKind =
   | 'collab_comment'
   | 'follow'
   | 'dm'
+  // 🔽 extra kinds used in page.tsx
   | 'report_creator'
-  | 'report_user';
+  | 'report_user'
+  | 'report_video';
 
 export type NotificationTargetType =
   | 'post'
   | 'event'
   | 'marketplace'
   | 'collab'
-  | 'profile';
+  | 'profile'
+  // 🔽 extra targets used in page.tsx
+  | 'creator'
+  | 'creators';
+
 
 export type NotificationTarget = {
   type: NotificationTargetType;
