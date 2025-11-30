@@ -17,29 +17,73 @@ type ScopeCtx = { country: string; setCountry: (c: string) => void };
 const Scope = createContext<ScopeCtx | null>(null);
 
 export function ScopeProvider({ children }: { children: React.ReactNode }) {
-  const initial = useMemo(() => {
-    if (typeof window === 'undefined') return 'GB';
-    const url = new URL(window.location.href);
-    const q = url.searchParams.get('country');
-    const saved = localStorage.getItem('ps.country');
-    const guess = (navigator.language || 'en-GB').split('-').pop() || 'GB';
-    return (q || saved || guess).toUpperCase();
-  }, []);
+  const DEFAULT_COUNTRY = 'GB';
 
-  const [country, setCountryState] = useState(initial);
+  // Initialise once, on first render
+  const [country, setCountryState] = useState<string>(() => {
+    if (typeof window === 'undefined') return DEFAULT_COUNTRY;
+
+    try {
+      const url = new URL(window.location.href);
+      const q = url.searchParams.get('country');
+
+      // 1) URL param wins if present
+      if (q && q.trim()) {
+        return q.toUpperCase();
+      }
+
+      // 2) Use browser language as a hint
+      const lang = (navigator.language || '').toLowerCase();
+      if (lang.includes('gb')) return 'GB';
+      if (lang.includes('us')) return 'US';
+
+      // 3) Final fallback: UK
+      return DEFAULT_COUNTRY;
+    } catch {
+      return DEFAULT_COUNTRY;
+    }
+  });
 
   const setCountry = (c: string) => {
-    const code = (c || 'GB').toUpperCase();
+    const code = (c || DEFAULT_COUNTRY).toUpperCase();
     setCountryState(code);
+
+    if (typeof window === 'undefined') return;
+
     try {
+      // Persist for convenience
       localStorage.setItem('ps.country', code);
+
+      // Keep URL in sync so share links retain scope
       const u = new URL(window.location.href);
       u.searchParams.set('country', code);
       history.replaceState({}, '', u.toString());
     } catch {
-      // ignore
+      // ignore storage / history errors
     }
   };
+
+  // If someone has an old value saved in localStorage from earlier builds,
+  // gently sync it forward on client mount (but don't override URL choice).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const saved = localStorage.getItem('ps.country');
+      if (!saved) return;
+
+      const url = new URL(window.location.href);
+      const q = url.searchParams.get('country');
+
+      // Only apply saved if URL doesn't already specify a country
+      if (!q && saved.toUpperCase() !== country.toUpperCase()) {
+        setCountry(saved);
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Scope.Provider value={{ country, setCountry }}>
@@ -90,7 +134,11 @@ export function useCountries() {
    COUNTRY SELECT PILL
 ============================================================================ */
 
-export function CountrySelect({ label = 'Show posts from' }: { label?: string }) {
+export function CountrySelect({
+  label = 'Show posts from',
+}: {
+  label?: string;
+}) {
   const { country, setCountry } = useScope();
   const countries = useCountries();
 
@@ -136,3 +184,4 @@ export function SectionDisclaimer({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+

@@ -13,6 +13,7 @@ import { Ghost, CalendarClock, Handshake } from 'lucide-react';
 import { createRoot } from 'react-dom/client';
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
+console.log('MAPBOX TOKEN (client):', mapboxgl.accessToken);
 
 export type LocationData = {
   id: string;
