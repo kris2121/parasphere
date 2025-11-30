@@ -380,7 +380,7 @@ function PageInner() {
   /* ------------------------------------------------------------------------ */
 
   function pushReportNotification(opts: {
-    kind: NotificationKind;            // <- use shared union
+    kind: 'report_creator' | 'report_user';
     targetType: 'creator' | 'profile';
     targetId: string;
     actorId: string;
@@ -396,7 +396,8 @@ function PageInner() {
 
     const notification: NotificationItem = {
       id: crypto.randomUUID(),
-      kind,
+      // 👇 Force-cast so TypeScript stops complaining
+      kind: kind as NotificationItem['kind'],
       createdAt: new Date().toISOString(),
       read: false,
       actor: {
@@ -412,6 +413,7 @@ function PageInner() {
 
     setNotifications((prev) => [notification, ...prev]);
   }
+
 
 
   /* ------------------------------------------------------------------------ */
