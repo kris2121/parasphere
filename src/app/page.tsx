@@ -396,7 +396,7 @@ function PageInner() {
 
     const notification: NotificationItem = {
       id: crypto.randomUUID(),
-      // Force-cast so TypeScript accepts it as a valid NotificationKind
+      // 🔐 make TypeScript happy by casting to NotificationKind
       kind: kind as NotificationKind,
       createdAt: new Date().toISOString(),
       read: false,
@@ -413,6 +413,7 @@ function PageInner() {
 
     setNotifications((prev) => [notification, ...prev]);
   }
+
 
 
 
