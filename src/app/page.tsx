@@ -799,18 +799,22 @@ async function fetchEvents() {
 
   const [comments, setComments] = useState<Record<string, Comment[]>>({});
 
-  function mapDBToComment(row: CommentDB): Comment {
-    return {
-      id: row.id,
-      text: row.text,
-      authorId: row.authorId,
-      authorName: row.authorName,
-      createdAt: row.createdAt,
-      imageUrl: row.imageUrl,
-      parentId: row.parentId ?? null,
-      tagUserIds: row.tagUserIds ?? [],
-    };
-  }
+// Make sure this matches your CommentDB type shape from lib/db/comments.ts
+function mapDBToComment(row: CommentDB): Comment {
+  return {
+    id: row.id,
+    key: row.key,                          // ✅ add this
+    text: row.text,
+    authorId: row.authorId,
+    authorName: row.authorName,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt ?? row.createdAt, // ✅ add this (fallback if needed)
+    imageUrl: row.imageUrl,
+    parentId: row.parentId ?? null,
+    tagUserIds: row.tagUserIds ?? [],
+  };
+}
+
 
   useEffect(() => {
     async function fetchAllComments() {
