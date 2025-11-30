@@ -394,9 +394,9 @@ function PageInner() {
         ? `reported a creator video${extraLabel ? `: "${extraLabel}"` : ''}.`
         : `reported a user${extraLabel ? `: "${extraLabel}"` : ''}.`;
 
-    const notification: NotificationItem = {
+    const notification: any = {
       id: crypto.randomUUID(),
-      kind: kind as NotificationItem['kind'],
+      kind,
       createdAt: new Date().toISOString(),
       read: false,
       actor: {
@@ -405,14 +405,14 @@ function PageInner() {
       },
       text,
       target: {
-        type: targetType as any, // 'creator' | 'profile'
+        type: targetType === 'creator' ? 'creator' : 'profile',
         id: targetId,
       },
     };
 
-
     setNotifications((prev) => [notification, ...prev]);
   }
+
 
 
 
