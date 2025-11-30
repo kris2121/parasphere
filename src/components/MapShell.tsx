@@ -27,7 +27,7 @@ const COUNTRY_CENTERS: Record<string, [number, number]> = {
 };
 
 type MapShellProps = {
-  mapRef: React.RefObject<LiveMapHandle>;
+  mapRef: React.RefObject<LiveMapHandle | null>;
   country: string;
   mapLocations: LocationData[];
   openFromPin: (loc: LocationData) => void;
