@@ -76,9 +76,11 @@ import type {
   CollabItem,
   Comment,
   NotificationItem,
+  NotificationKind,
   DMMessage,
   DMThread,
 } from '@/types/paraverse';
+
 
 // Local SocialLink type for feeds & forms
 type SocialLink = {
@@ -378,7 +380,7 @@ function PageInner() {
   /* ------------------------------------------------------------------------ */
 
   function pushReportNotification(opts: {
-    kind: 'report_creator' | 'report_user';
+    kind: NotificationKind;            // <- use shared union
     targetType: 'creator' | 'profile';
     targetId: string;
     actorId: string;
@@ -394,7 +396,7 @@ function PageInner() {
 
     const notification: NotificationItem = {
       id: crypto.randomUUID(),
-      kind, // you'll extend the union in types/paraverse
+      kind,
       createdAt: new Date().toISOString(),
       read: false,
       actor: {
@@ -410,6 +412,7 @@ function PageInner() {
 
     setNotifications((prev) => [notification, ...prev]);
   }
+
 
   /* ------------------------------------------------------------------------ */
   /*  LOAD USER PROFILE (FIRESTORE)                                           */
