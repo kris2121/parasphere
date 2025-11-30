@@ -1002,35 +1002,41 @@ function mapDBToComment(row: CommentDB): Comment {
     cImgClear();
   }
 
-  async function submitComment() {
-    if (!commentKey) return;
+async function submitComment() {
+  if (!commentKey) return;
 
-    const trimmed = commentText.trim();
-    if (!trimmed && !cImg) return;
+  const trimmed = commentText.trim();
+  if (!trimmed && !cImg) return;
 
-    if (editingCommentId) {
-      await updateCommentForKey(commentKey, editingCommentId, {
-        text: trimmed,
-        imageUrl: cImg,
-        tagUserIds: commentTags,
-      });
-    } else {
-      const newComment: Comment = {
-        id: crypto.randomUUID(),
-        text: trimmed,
-        authorId: currentUser.id,
-        authorName: currentUser.name,
-        createdAt: Date.now(),
-        parentId: activeReplyParentId,
-        imageUrl: cImg,
-        tagUserIds: commentTags,
-      };
+  if (editingCommentId) {
+    await updateCommentForKey(commentKey, editingCommentId, {
+      text: trimmed,
+      imageUrl: cImg,
+      tagUserIds: commentTags,
+      updatedAt: Date.now(),      // ensure edit timestamp
+    });
+  } else {
+    const now = Date.now();
 
-      await addCommentForKey(commentKey, newComment);
-    }
+    const newComment: Comment = {
+      id: crypto.randomUUID(),
+      key: commentKey,            // REQUIRED
+      text: trimmed,
+      authorId: currentUser.id,
+      authorName: currentUser.name,
+      createdAt: now,
+      updatedAt: now,             // REQUIRED
+      parentId: activeReplyParentId ?? null,
+      imageUrl: cImg ?? undefined,
+      tagUserIds: commentTags ?? [],
+    };
 
-    resetCommentState();
+    await addCommentForKey(commentKey, newComment);
   }
+
+  resetCommentState();
+}
+
 
   const locationReviews = useMemo(() => {
     if (!drawerLoc) return [];
