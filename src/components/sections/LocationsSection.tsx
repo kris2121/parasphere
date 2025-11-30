@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { SectionDisclaimer, CountrySelect } from '@/components/ParaverseScope';
+import { SectionDisclaimer } from '@/components/ParaverseScope';
 import type { LocationData } from '@/components/LiveMap';
 import type { Comment } from '@/types/paraverse';
 import type { UserMini } from '@/components/UserDrawer';
@@ -107,10 +107,7 @@ export default function LocationsSection({
         before visiting. Some listings may not be officially owner-confirmed.
       </SectionDisclaimer>
 
-      {/* Country scope pill */}
-      <div className="mb-4">
-        <CountrySelect country={country ?? undefined} countries={countries} />
-      </div>
+      {/* Country scope selector is handled globally in the header now */}
 
       <div className="mb-6">
         <button
@@ -152,7 +149,3 @@ export default function LocationsSection({
     </>
   );
 }
-
-
-
-

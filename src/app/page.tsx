@@ -788,12 +788,14 @@ async function fetchEvents() {
     }
   }
 
-  const [editingListing, setEditingListing] =
-    useState<MarketplaceItem | null>(null);
+ // Marketplace edit state
+const [editingListing, setEditingListing] =
+  useState<MarketplaceItem | null>(null);
 
-  const [marketFilter, setMarketFilter] = useState<
-    'All' | 'Product' | 'Service'
-  >('Product');
+// Marketplace filter state (cleaned: All / For Sale / Wanted)
+type MarketFilter = 'All' | 'For Sale' | 'Wanted';
+
+const [marketFilter, setMarketFilter] = useState<MarketFilter>('All');
 
   // LOAD CREATOR POSTS
   useEffect(() => {

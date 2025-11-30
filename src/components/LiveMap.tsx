@@ -28,7 +28,12 @@ export type LocationData = {
   countryCode?: string;
   postalCode?: string;
   verifiedByOwner?: boolean;
+
+  // Event-specific timing fields (optional)
+  startISO?: string;
+  endISO?: string;
 };
+
 
 type Props = {
   locations: LocationData[];

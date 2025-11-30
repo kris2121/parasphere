@@ -1,22 +1,23 @@
 'use client';
 
 import React, { FormEvent, useState, useEffect } from 'react';
-import type { SocialLink } from '@/app/page'; // or wherever SocialLink is exported
+import type { SocialLink } from '@/types/paraverse';
 
 type Props = {
   mode: 'create' | 'edit';
   initialItem?: {
-    id: string;
-    kind: 'For Sale' | 'Wanted';
-    title: string;
-    description: string;
+    id?: string;
+    // Accept both historic and new kinds
+    kind?: 'Product' | 'Service' | 'For Sale' | 'Wanted';
+    title?: string;
+    description?: string;
     imageUrl?: string;
     countryCode?: string;
     postalCode?: string;
     socialLinks?: SocialLink[];
   };
   handleAddListing: (e: FormEvent<HTMLFormElement>) => void;
-  mkImg?: string;
+  mkImg?: string | null;
   mkImgChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   mkImgClear: () => void;
   country: string;
@@ -72,6 +73,13 @@ export default function MarketplaceForm({
     mode === 'edit' ? 'Edit Marketplace Listing' : 'Add Marketplace Listing';
   const submitText = mode === 'edit' ? 'Save changes' : 'Save Listing';
 
+  const initialKind = initialItem?.kind;
+
+  const isForSale =
+    initialKind === 'Product' || initialKind === 'For Sale' || initialKind == null;
+  const isWanted =
+    initialKind === 'Service' || initialKind === 'Wanted';
+
   return (
     <form onSubmit={handleAddListing} className="space-y-3">
       <h3 className="text-lg font-semibold text-yellow-300">{titleText}</h3>
@@ -82,22 +90,16 @@ export default function MarketplaceForm({
       )}
 
       {/* hidden JSON social links */}
-      <input
-        type="hidden"
-        name="socialLinks"
-        value={JSON.stringify(links)}
-      />
+      <input type="hidden" name="socialLinks" value={JSON.stringify(links)} />
 
-{/* FOR SALE / WANTED TOGGLE (kind still Product/Service under the hood) */}
+      {/* KIND TOGGLE (values are Product / Service; labels are For Sale / Wanted) */}
       <div className="flex items-center gap-4 text-sm">
         <label className="flex items-center gap-1">
           <input
             type="radio"
             name="kind"
             value="Product"
-            defaultChecked={
-              initialItem ? initialItem.kind === 'Product' : true
-            }
+            defaultChecked={isForSale}
             className="accent-yellow-400"
           />
           <span>For Sale</span>
@@ -107,7 +109,7 @@ export default function MarketplaceForm({
             type="radio"
             name="kind"
             value="Service"
-            defaultChecked={initialItem?.kind === 'Service'}
+            defaultChecked={isWanted}
             className="accent-yellow-400"
           />
           <span>Wanted</span>
@@ -126,7 +128,7 @@ export default function MarketplaceForm({
       {/* DESCRIPTION */}
       <textarea
         name="desc"
-        placeholder="Describe the Item, delivery/collection and relevent details, etc."
+        placeholder="Describe the item, delivery/collection and relevant details, etc."
         required
         defaultValue={initialItem?.description ?? ''}
         className="min-h-[120px] w-full rounded-md border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white"
@@ -280,3 +282,5 @@ export default function MarketplaceForm({
     </form>
   );
 }
+
+

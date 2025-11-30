@@ -184,7 +184,10 @@ export default function MapShell(props: MapShellProps) {
                   openComment(reviewKey);
                 }}
                 reviews={locationReviews}
-                canEditReview={canEditComment}
+                // 🔧 Adapt Comment-based function to Review-based signature
+                canEditReview={(review) =>
+                  canEditComment(review as unknown as Comment)
+                }
                 onEditReview={(reviewId) => {
                   if (!drawerLoc) return;
                   const reviewKey = `loc:${drawerLoc.id}`;
@@ -289,15 +292,20 @@ export default function MapShell(props: MapShellProps) {
                             {ev.postedBy?.name || 'Unknown'}
                           </span>
                         </div>
-                        {ev.postedBy?.id && (
-                          <button
-                            type="button"
-                            onClick={() => openDM(ev.postedBy.id)}
-                            className="inline-flex items-center rounded-full border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-xs font-semibold text-purple-200 hover:bg-purple-500/20"
-                          >
-                            Message host
-                          </button>
-                        )}
+{ev.postedBy?.id && (
+  <button
+    type="button"
+    onClick={() => {
+      const hostId = ev.postedBy?.id;
+      if (!hostId) return;
+      openDM(hostId);
+    }}
+    className="inline-flex items-center rounded-full border border-purple-400 bg-purple-500/10 px-3 py-1.5 text-xs font-semibold text-purple-200 hover:bg-purple-500/20"
+  >
+    Message host
+  </button>
+)}
+
                       </div>
                     </div>
                   );
@@ -430,6 +438,7 @@ export default function MapShell(props: MapShellProps) {
     </section>
   );
 }
+
 
 
 

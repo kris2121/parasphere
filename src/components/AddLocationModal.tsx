@@ -25,7 +25,7 @@ export default function AddLocationModal({
   const [address, setAddress] = useState('');
   const [priceInfo, setPriceInfo] = useState('');
   const [website, setWebsite] = useState('');
-  const [verified, setVerified] = useState(false); // NEW VERIFIED TOGGLE
+  const [verified, setVerified] = useState(false); // NEW VERIFIED TOGGLE (UI-only for now)
 
   const [lng, setLng] = useState<number>(defaultCenter?.[0] ?? -2.5);
   const [lat, setLat] = useState<number>(defaultCenter?.[1] ?? 54.3);
@@ -57,7 +57,7 @@ export default function AddLocationModal({
       address: address.trim() || undefined,
       priceInfo: priceInfo.trim() || undefined,
       website: website.trim() || undefined,
-      verified, // NEW FLAG
+      // ✅ removed `verified` here because it's not in LocationData
       imageUrl,
     };
 
@@ -77,9 +77,8 @@ export default function AddLocationModal({
                    rounded-xl border border-white/20 bg-neutral-950 p-5"
       >
         <form onSubmit={handleSubmit} className="space-y-4 text-white">
-
           {/* TITLE */}
-          <h3 className="text-xl font-semibold flex items-center gap-2">
+          <h3 className="flex items-center gap-2 text-xl font-semibold">
             Add Location
             {verified && <BadgeCheck size={18} className="text-white" />}
           </h3>
@@ -94,7 +93,7 @@ export default function AddLocationModal({
                        bg-neutral-900 px-3 py-2 text-white"
           />
 
-          {/* TYPE — CLEANED TO ONLY HAUNTING/EVENT/COLLAB */}
+          {/* TYPE — ONLY HAUNTING/EVENT/COLLAB */}
           <select
             value={type}
             onChange={(e) =>
@@ -113,8 +112,8 @@ export default function AddLocationModal({
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
             placeholder="Enter details, history, date/time if relevant, and any important information…"
-            className="w-full rounded-md border border-white/20 
-                       bg-neutral-900 px-3 py-2 text-white h-28"
+            className="h-28 w-full rounded-md border border-white/20 
+                       bg-neutral-900 px-3 py-2 text-white"
           />
 
           <input
@@ -138,8 +137,8 @@ export default function AddLocationModal({
             className="w-full rounded-md border border-white/20 bg-neutral-900 px-3 py-2"
           />
 
-          {/* VERIFIED TOGGLE */}
-          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          {/* VERIFIED TOGGLE (UI only) */}
+          <label className="flex cursor-pointer select-none items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={verified}
@@ -170,7 +169,9 @@ export default function AddLocationModal({
 
           {/* IMAGE UPLOADER */}
           <div>
-            <div className="text-sm mb-1 text-neutral-300">Main photo (optional)</div>
+            <div className="mb-1 text-sm text-neutral-300">
+              Main photo (optional)
+            </div>
             <input
               type="file"
               accept="image/*"
@@ -180,10 +181,11 @@ export default function AddLocationModal({
 
             {imageUrl && (
               <div className="mt-2 rounded-md border border-white/10 p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={imageUrl}
                   alt="preview"
-                  className="w-auto max-h-64 rounded-md border border-white/10"
+                  className="max-h-64 w-auto rounded-md border border-white/10"
                 />
               </div>
             )}
@@ -212,5 +214,6 @@ export default function AddLocationModal({
     </>
   );
 }
+
 
 

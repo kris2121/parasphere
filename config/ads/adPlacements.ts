@@ -1,46 +1,40 @@
-// config/adPlacements.ts
+// src/config/adPlacements.ts
 
+// All valid ad placement keys used across the app
 export type AdPlacementKey =
-  // Home feed
-  | 'home-feed-inline-1'
-  | 'home-feed-inline-2'
-  // Events feed
+  // Events
   | 'events-header-banner-carousel'
   | 'events-feed-inline-1'
   | 'events-feed-inline-2'
-  // Marketplace feed
+  // Marketplace
   | 'marketplace-header-banner-carousel'
   | 'marketplace-feed-inline-1'
   | 'marketplace-feed-inline-2'
-  // Collaborations feed
+  // Collaborations
+  | 'collabs-header-banner'
   | 'collabs-feed-inline-1'
-  | 'collabs-feed-inline-2'
-  // Locations feed
-  | 'locations-feed-inline-1'
-  | 'locations-feed-inline-2'
-  // Global / reserved
-  | 'global-footer-banner'
-  | 'promo-interstitial';
+  | 'collabs-feed-inline-2';
 
-export const AD_PLACEMENTS: AdPlacementKey[] = [
-  // Home feed
-  'home-feed-inline-1',
-  'home-feed-inline-2',
-  // Events feed
-  'events-header-banner-carousel',
-  'events-feed-inline-1',
-  'events-feed-inline-2',
-  // Marketplace feed
-  'marketplace-header-banner-carousel',
-  'marketplace-feed-inline-1',
-  'marketplace-feed-inline-2',
-  // Collaborations feed
-  'collabs-feed-inline-1',
-  'collabs-feed-inline-2',
-  // Locations feed
-  'locations-feed-inline-1',
-  'locations-feed-inline-2',
-  // Global / reserved
-  'global-footer-banner',
-  'promo-interstitial',
-];
+// Optional registry object if you want labels / admin UI later
+export const AD_PLACEMENTS: Record<
+  AdPlacementKey,
+  { label: string }
+> = {
+  // Events
+  'events-header-banner-carousel': { label: 'Events header banner' },
+  'events-feed-inline-1': { label: 'Events inline #1' },
+  'events-feed-inline-2': { label: 'Events inline #2' },
+
+  // Marketplace
+  'marketplace-header-banner-carousel': {
+    label: 'Marketplace header banner',
+  },
+  'marketplace-feed-inline-1': { label: 'Marketplace inline #1' },
+  'marketplace-feed-inline-2': { label: 'Marketplace inline #2' },
+
+  // Collabs
+  'collabs-header-banner': { label: 'Collabs header banner' },
+  'collabs-feed-inline-1': { label: 'Collabs inline #1' },
+  'collabs-feed-inline-2': { label: 'Collabs inline #2' },
+};
+

@@ -4,9 +4,6 @@ import {
   collection,
   doc,
   getDocs,
-  query,
-  where,
-  orderBy,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -14,7 +11,9 @@ import {
 } from 'firebase/firestore';
 
 import { db } from '@/lib/firebase';
-import type { AdPlacementKey } from '@/config/adPlacements';
+
+// 🔹 Single, simple placement key type used app-wide
+export type AdPlacementKey = string;
 
 export type AdFormat = 'native' | 'banner';
 
@@ -54,7 +53,6 @@ const ADS_COLLECTION = 'ads';
 
 // -------------------------------------------------------------
 // Load all *currently active* ads for a given placement.
-// This powers both native slots and carousels.
 // -------------------------------------------------------------
 export async function loadActiveAdsForPlacement(
   placementKey: AdPlacementKey,
@@ -75,7 +73,7 @@ export async function loadActiveAdsForPlacement(
     const activeFrom = data.activeFrom as Timestamp | undefined;
     const activeTo = data.activeTo as Timestamp | undefined;
 
-    // Optional schedule checks (but be defensive if not real timestamps)
+    // Optional schedule checks
     if (activeFrom && typeof activeFrom.toMillis === 'function') {
       if (activeFrom.toMillis() > now.toMillis()) return;
     }
@@ -97,7 +95,6 @@ export async function loadActiveAdsForPlacement(
       priority: data.priority ?? 0,
       activeFrom,
       activeTo,
-      // fallbacks in case createdAt/updatedAt are strings or missing
       createdAt: data.createdAt ?? now,
       updatedAt: data.updatedAt ?? now,
     });
@@ -109,15 +106,15 @@ export async function loadActiveAdsForPlacement(
   return ads;
 }
 
-
 // -------------------------------------------------------------
 // Create a new ad document
-// (You can also just use the Firestore console if you prefer.)
 // -------------------------------------------------------------
-export async function createAd(partial: Partial<AdDB> & {
-  placementKey: AdPlacementKey;
-  format: AdFormat;
-}) {
+export async function createAd(
+  partial: Partial<AdDB> & {
+    placementKey: AdPlacementKey;
+    format: AdFormat;
+  },
+) {
   const adsRef = collection(db, ADS_COLLECTION);
   const id = doc(adsRef).id;
   const now = Timestamp.now();
@@ -166,3 +163,5 @@ export async function deleteAdDoc(id: string) {
   const adRef = doc(db, ADS_COLLECTION, id);
   await deleteDoc(adRef);
 }
+
+

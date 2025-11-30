@@ -8,11 +8,13 @@ import {
   SectionDisclaimer,
 } from '@/components/ParaverseScope';
 
+type MarketFilter = 'All' | 'For Sale' | 'Wanted';
+
 type Props = {
   country: string | null;
   items: MarketplaceItem[];
-  marketFilter: 'All' | 'Product' | 'Service';
-  setMarketFilter: (v: 'All' | 'Product' | 'Service') => void;
+  marketFilter: MarketFilter;
+  setMarketFilter: (v: MarketFilter) => void;
   currentUserId: string;
 
   // NEW: admin flag so admin can edit/delete any listing
@@ -43,11 +45,11 @@ export default function MarketplaceSection({
   onOpenUser,
 }: Props) {
   const filteredItems = useMemo(() => {
-    if (marketFilter === 'Product') {
-      return items.filter((i) => i.kind === 'Product');
+    if (marketFilter === 'For Sale') {
+      return items.filter((i) => i.kind === 'For Sale');
     }
-    if (marketFilter === 'Service') {
-      return items.filter((i) => i.kind === 'Service');
+    if (marketFilter === 'Wanted') {
+      return items.filter((i) => i.kind === 'Wanted');
     }
     return items;
   }, [items, marketFilter]);
@@ -62,7 +64,7 @@ export default function MarketplaceSection({
       <div className="mt-3">
         <SectionDisclaimer>
           Listings are community-submitted. Paraverse does not verify
-          products or services. Please use common sense and stay safe
+          listings or users. Please use common sense and stay safe
           when arranging purchases or meet-ups.
         </SectionDisclaimer>
       </div>
@@ -86,22 +88,33 @@ export default function MarketplaceSection({
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
         <button
           className={`rounded-full border px-3 py-1 ${
-            marketFilter === 'Product'
+            marketFilter === 'All'
               ? 'border-yellow-500 bg-yellow-500/10 text-yellow-300'
               : 'border-neutral-700 text-neutral-300'
           }`}
-          onClick={() => setMarketFilter('Product')}
+          onClick={() => setMarketFilter('All')}
+        >
+          All
+        </button>
+
+        <button
+          className={`rounded-full border px-3 py-1 ${
+            marketFilter === 'For Sale'
+              ? 'border-yellow-500 bg-yellow-500/10 text-yellow-300'
+              : 'border-neutral-700 text-neutral-300'
+          }`}
+          onClick={() => setMarketFilter('For Sale')}
         >
           For Sale
         </button>
 
         <button
           className={`rounded-full border px-3 py-1 ${
-            marketFilter === 'Service'
+            marketFilter === 'Wanted'
               ? 'border-yellow-500 bg-yellow-500/10 text-yellow-300'
               : 'border-neutral-700 text-neutral-300'
           }`}
-          onClick={() => setMarketFilter('Service')}
+          onClick={() => setMarketFilter('Wanted')}
         >
           Wanted
         </button>
@@ -121,6 +134,7 @@ export default function MarketplaceSection({
     </div>
   );
 }
+
 
 
 

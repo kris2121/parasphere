@@ -1,5 +1,3 @@
-import type { EventsFeedEvent } from '@/components/feed/EventsFeed';
-
 /* ============================================================================
    SOCIAL LINKS
 ============================================================================ */
@@ -17,7 +15,7 @@ export type SocialLink = {
 };
 
 /* ============================================================================
-   CORE FEED TYPES
+   CORE CONTENT TYPES
 ============================================================================ */
 
 export type DemoPost = {
@@ -29,7 +27,7 @@ export type DemoPost = {
   imageUrl?: string;
   linkUrl?: string;
 
-  // What kind of external link this post has (for icons / routing)
+  // what kind of link it is
   linkKind?: 'youtube' | 'tiktok' | 'instagram' | 'facebook' | 'other';
 
   authorId: string;
@@ -40,25 +38,50 @@ export type DemoPost = {
 
 export type MarketplaceItem = {
   id: string;
-  kind: 'Product' | 'Service';
+  // Internal kind used in forms / DB
+  kind: 'For Sale' | 'Wanted';
   title: string;
   description: string;
   imageUrl?: string;
 
-  // Legacy / compatibility fields
+  // legacy / generic link fields
   contactInfo?: string;
-  webLink?: string; // single standard link
+  webLink?: string;
 
   createdAt: number;
   postedBy: { id: string; name: string };
   countryCode?: string;
   postalCode?: string;
-  // NOTE: socialLinks removed for marketplace – not needed here
+  // no socialLinks here; those live on events/collabs/locations instead
 };
 
-export type EventItem = EventsFeedEvent & {
+/**
+ * Event items used in EventsFeed + page.tsx
+ * (previously extended EventsFeedEvent, now self-contained)
+ */
+export type EventItem = {
+  id: string;
+  title: string;
+  description?: string;
+  imageUrl?: string;
+
+  countryCode?: string;
+  postalCode?: string;
   locationId?: string;
+
+  // multi-link support (primary link usually first)
   socialLinks?: SocialLink[];
+
+  createdAt: number;
+
+  postedBy?: {
+    id: string;
+    name: string;
+    avatarUrl?: string;
+  };
+
+  // allow page.tsx / feeds to tack on extra fields safely
+  [key: string]: any;
 };
 
 export type CollabItem = {
@@ -91,9 +114,7 @@ export type Comment = {
   tagUserIds?: string[];
 };
 
-/* ============================================================================
-   MESSAGES & NOTIFICATIONS
-============================================================================ */
+/* ======================= MESSAGES & NOTIFICATIONS TYPES ==================== */
 
 export type NotificationKind =
   | 'comment_reply'
@@ -102,7 +123,7 @@ export type NotificationKind =
   | 'collab_comment'
   | 'follow'
   | 'dm'
-  // Extra kinds used in page.tsx (reports etc.)
+  // extra kinds used in page.tsx
   | 'report_creator'
   | 'report_user'
   | 'report_video';
@@ -113,7 +134,7 @@ export type NotificationTargetType =
   | 'marketplace'
   | 'collab'
   | 'profile'
-  // Extra targets used in page.tsx
+  // extra targets used in page.tsx
   | 'creator'
   | 'creators';
 
@@ -156,5 +177,6 @@ export type DMThread = {
   lastMessageAt: string; // ISO
   messages: DMMessage[];
 };
+
 
 

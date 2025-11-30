@@ -2,36 +2,18 @@
 
 import React, { useEffect, useState } from 'react';
 
-import type { AdPlacementKey } from '@/config/adPlacements';
 import {
   loadActiveAdsForPlacement,
   type AdDB,
+  type AdPlacementKey,
 } from '@/lib/db/ads';
 
 type AdSlotProps = {
   placementKey: AdPlacementKey;
   className?: string;
-
-  /**
-   * For inline placements, you might want to limit
-   * to only the top N ads, usually 1.
-   */
   maxItems?: number;
 };
 
-/**
- * Main ad slot component.
- *
- * - For header *banner* placements (those ending in "-header-banner-carousel"),
- *   it renders a simple carousel of banner ads.
- *
- * - For inline feed placements, it renders a single "native" ad card
- *   using the highest priority active ad.
- *
- * - If there are no sponsor ads for this placement, it renders a
- *   <GoogleAdFallback /> placeholder which can later be wired up
- *   to Google AdSense / AdMob.
- */
 const AdSlot: React.FC<AdSlotProps> = ({
   placementKey,
   className,
@@ -42,7 +24,8 @@ const AdSlot: React.FC<AdSlotProps> = ({
 
   const isHeaderCarousel =
     placementKey === 'events-header-banner-carousel' ||
-    placementKey === 'marketplace-header-banner-carousel';
+    placementKey === 'marketplace-header-banner-carousel' ||
+    placementKey === 'collabs-header-banner';
 
   useEffect(() => {
     let isMounted = true;
@@ -66,17 +49,9 @@ const AdSlot: React.FC<AdSlotProps> = ({
     };
   }, [placementKey]);
 
-  // Loading state: show nothing, keep it invisible to avoid layout jump.
-  if (!ads && !error) {
-    return null;
-  }
+  if (!ads && !error) return null;
+  if (error) return null;
 
-  // Error state: fail silently in UI (no ad), but log in console.
-  if (error) {
-    return null;
-  }
-
-  // No sponsor ads for this placement → render Google fallback container.
   if (!ads || ads.length === 0) {
     return (
       <div className={className}>
@@ -85,7 +60,6 @@ const AdSlot: React.FC<AdSlotProps> = ({
     );
   }
 
-  // Header banner placements: carousel of banner ads.
   if (isHeaderCarousel) {
     return (
       <div className={className}>
@@ -94,7 +68,6 @@ const AdSlot: React.FC<AdSlotProps> = ({
     );
   }
 
-  // Inline placements: show only the first N ads (usually 1).
   const inlineAds = ads.slice(0, maxItems);
 
   return (
@@ -109,24 +82,13 @@ const AdSlot: React.FC<AdSlotProps> = ({
 export default AdSlot;
 
 /* -------------------------------------------------------------------------- */
-/*  GOOGLE FALLBACK STUB (GOOGLE-READY CONTAINER)                             */
+/*  GOOGLE FALLBACK STUB                                                      */
 /* -------------------------------------------------------------------------- */
 
 type GoogleAdFallbackProps = {
   placementKey: AdPlacementKey;
 };
 
-/**
- * Placeholder for Google / AdMob ad.
- *
- * This renders a neutral container with data attributes that can be
- * targeted by your Google ad script. No debug styling, no visible box.
- *
- * Later, when you integrate Google ads, you can:
- * - Either replace this component with the official <ins class="adsbygoogle"> snippet
- * - Or have your script look for [data-ad-provider="google"] / data-ad-slot
- *   and inject ads into these blocks.
- */
 const GoogleAdFallback: React.FC<GoogleAdFallbackProps> = ({
   placementKey,
 }) => {
@@ -286,7 +248,6 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ ads }) => {
 
       {ads.length > 1 && (
         <>
-          {/* Carousel controls */}
           <button
             type="button"
             onClick={goPrev}
@@ -302,7 +263,6 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ ads }) => {
             ›
           </button>
 
-          {/* Dots */}
           <div className="pointer-events-none absolute bottom-2 left-0 right-0 flex justify-center gap-1">
             {ads.map((_, i) => (
               <div
@@ -318,5 +278,8 @@ const BannerCarousel: React.FC<BannerCarouselProps> = ({ ads }) => {
     </div>
   );
 };
+
+
+
 
 

@@ -96,7 +96,7 @@ export default function MarketplaceFeed({
 
                         {item.kind && (
                           <span className="rounded-full border border-yellow-500/60 bg-yellow-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-yellow-300">
-                            {item.kind === 'Product' ? 'FOR SALE' : 'WANTED'}
+                            {item.kind === 'For Sale' ? 'FOR SALE' : 'WANTED'}
                           </span>
                         )}
                       </div>
