@@ -130,6 +130,36 @@ import {
   signInWithPopup,
   signOut,
 } from 'firebase/auth';
+// Normalise marketplace item into the form shape
+function mapMarketplaceItemToForm(item: any): {
+  id: string;
+  kind: 'For Sale' | 'Wanted';
+  title: string;
+  description: string;
+  imageUrl?: string;
+  countryCode?: string;
+  postalCode?: string;
+  socialLinks?: SocialLink[];
+} {
+  const rawKind = item?.kind as string | undefined;
+
+  // Handle both old ("Product"/"Service") and new ("For Sale"/"Wanted") values gracefully
+  const kind: 'For Sale' | 'Wanted' =
+    rawKind === 'Product' || rawKind === 'For Sale'
+      ? 'For Sale'
+      : 'Wanted';
+
+  return {
+    id: item.id,
+    kind,
+    title: item.title,
+    description: item.description,
+    imageUrl: item.imageUrl,
+    countryCode: item.countryCode,
+    postalCode: item.postalCode,
+    socialLinks: item.socialLinks ?? [],
+  };
+}
 
 /* ========================================================================== */
 /*  MAIN PAGE WRAPPER                                                         */
@@ -3200,7 +3230,7 @@ async function submitComment() {
         />
       </Modal>
 
-      {/* MARKETPLACE MODAL */}
+          {/* MARKETPLACE MODAL */}
       <Modal
         open={listingFormOpen}
         onClose={() => {
@@ -3208,21 +3238,23 @@ async function submitComment() {
           setEditingListing(null);
         }}
       >
-        <MarketplaceForm
-          mode={editingListing ? 'edit' : 'create'}
-          initialItem={editingListing ?? undefined}
-          handleAddListing={handleAddListing}
-          mkImg={mkImg}
-          mkImgChange={mkImgChange}
-          mkImgClear={mkImgClear}
-          country={country}
-          countries={countries}
-          onCancel={() => {
-            setListingFormOpen(false);
-            setEditingListing(null);
-          }}
-        />
+<MarketplaceForm
+  mode={editingListing ? 'edit' : 'create'}
+  initialItem={editingListing ? mapMarketplaceItemToForm(editingListing) : undefined}
+  handleAddListing={handleAddListing}
+  mkImg={mkImg}
+  mkImgChange={mkImgChange}
+  mkImgClear={mkImgClear}
+  country={country}
+  countries={countries}
+  onCancel={() => {
+    setListingFormOpen(false);
+    setEditingListing(null);
+  }}
+/>
+
       </Modal>
+
 
       {/* COLLAB MODAL */}
       <Modal
