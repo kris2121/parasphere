@@ -1,6 +1,17 @@
 import type { EventsFeedEvent } from '@/components/feed/EventsFeed';
 
 /* ============================================================================
+   SOCIAL LINKS
+============================================================================ */
+
+export type SocialPlatform = 'YouTube' | 'TikTok' | 'Instagram' | 'Facebook' | 'Link';
+
+export type SocialLink = {
+  platform: SocialPlatform;
+  url: string;
+};
+
+/* ============================================================================
    TYPES
 ============================================================================ */
 
@@ -22,7 +33,6 @@ export type DemoPost = {
   createdAt: number;
 };
 
-
 export type MarketplaceItem = {
   id: string;
   kind: 'Product' | 'Service';
@@ -37,9 +47,8 @@ export type MarketplaceItem = {
   postedBy: { id: string; name: string };
   countryCode?: string;
   postalCode?: string;
-  // 🔥 remove socialLinks – we don't need it for marketplace anymore
+  // 🔥 socialLinks removed for marketplace – not needed anymore
 };
-
 
 export type EventItem = EventsFeedEvent & {
   locationId?: string;
@@ -76,7 +85,6 @@ export type Comment = {
   tagUserIds?: string[];
 };
 
-
 /* ======================= MESSAGES & NOTIFICATIONS TYPES ==================== */
 
 export type NotificationKind =
@@ -85,7 +93,9 @@ export type NotificationKind =
   | 'market_comment'
   | 'collab_comment'
   | 'follow'
-  | 'dm';
+  | 'dm'
+  | 'report_creator'
+  | 'report_user';
 
 export type NotificationTargetType =
   | 'post'
@@ -133,3 +143,4 @@ export type DMThread = {
   lastMessageAt: string; // ISO
   messages: DMMessage[];
 };
+
