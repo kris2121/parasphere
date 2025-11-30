@@ -438,16 +438,26 @@ const effectiveRole: 'user' | 'admin' | 'superadmin' =
   (usersById[user.id]?.role as 'user' | 'admin' | 'superadmin' | undefined) ??
   'user';
 
+// Normalise Firestore socialLinks → UserMini.socialLinks shape
+const safeSocialLinks = Array.isArray(user.socialLinks)
+  ? user.socialLinks.map((link: any, index: number) => ({
+      id: link.id ?? `${user.id}-link-${index}`,
+      label: link.label ?? link.platform ?? 'Link',
+      platform: (link.platform ?? 'Link') as any,
+      url: link.url ?? '',
+    }))
+  : [];
 
-        const mini: UserMini = {
-          id: user.id,
-          name: user.name,
-          avatarUrl: user.avatarUrl ?? undefined,
-          bio: user.bio ?? undefined,
-          country: user.country ?? undefined,
-          socialLinks: user.socialLinks ?? [],
-          role: effectiveRole,
-        };
+const mini: UserMini = {
+  id: user.id,
+  name: user.name,
+  avatarUrl: user.avatarUrl ?? undefined,
+  bio: user.bio ?? undefined,
+  country: user.country ?? undefined,
+  socialLinks: safeSocialLinks,
+  role: effectiveRole,
+};
+
 
         // Update currentUser, but never override superadmin privilege
         setCurrentUser((prev) => ({

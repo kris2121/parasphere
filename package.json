@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@vercel/speed-insights": "^1.2.0",
     "firebase": "^12.6.0",
     "lucide-react": "^0.553.0",
     "mapbox-gl": "^2.15.0",
