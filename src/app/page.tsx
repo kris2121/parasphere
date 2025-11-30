@@ -396,8 +396,8 @@ function PageInner() {
 
     const notification: NotificationItem = {
       id: crypto.randomUUID(),
-      // 👇 Force-cast so TypeScript stops complaining
-      kind: kind as NotificationItem['kind'],
+      // Force-cast so TypeScript accepts it as a valid NotificationKind
+      kind: kind as NotificationKind,
       createdAt: new Date().toISOString(),
       read: false,
       actor: {
