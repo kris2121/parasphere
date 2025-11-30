@@ -427,11 +427,11 @@ function PageInner() {
           return;
         }
 
-        // Determine role from Firestore → local → fallback
-        const effectiveRole =
-          (user.role as 'user' | 'admin' | 'superadmin' | undefined) ??
-          usersById[user.id]?.role ??
-          'user';
+// Determine role from our local usersById map → fallback
+const effectiveRole: 'user' | 'admin' | 'superadmin' =
+  (usersById[user.id]?.role as 'user' | 'admin' | 'superadmin' | undefined) ??
+  'user';
+
 
         const mini: UserMini = {
           id: user.id,
